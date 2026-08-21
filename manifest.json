@@ -1,23 +1,22 @@
 {
+  "name": "NGym - تطبيق التدريب الذكي",
   "short_name": "NGym",
-  "name": "NGym - مدربك الذكي",
+  "description": "تطبيق اللياقة البدنية والمدرب الذكي لمتابعة التمارين والماكروز",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#00ff66",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "assets/icons/icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
+      "src": "https://cdn-icons-png.flaticon.com/512/2964/2964514.png",
+      "sizes": "192x192",
+      "type": "image/png"
     },
     {
-      "src": "assets/icons/icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "src": "https://cdn-icons-png.flaticon.com/512/2964/2964514.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
-  ],
-  "start_url": "./index.html",
-  "background_color": "#121212",
-  "theme_color": "#2ecc71",
-  "display": "standalone",
-  "orientation": "portrait",
-  "dir": "rtl",
-  "lang": "ar"
+  ]
 }
