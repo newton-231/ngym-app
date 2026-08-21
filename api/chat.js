@@ -11,8 +11,8 @@ export default async function handler(req, res) {
     }
 
     try {
-        // استخدام النموذج المستقر المعتمد gemini-1.5-flash
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`, {
+        // تم الاعتماد على النموذج الحديث المتاح مجاناً للجميع gemini-2.0-flash
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json' 
