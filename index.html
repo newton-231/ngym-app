@@ -14,19 +14,44 @@
 
     <!-- الواجهة الرئيسية (Hero Screen) -->
     <main class="hero-container">
-        <!-- عند الضغط 5 مرات هنا تفتح نافذة الأدمن -->
+        <!-- عند الضغط 5 مرات متتالية هنا تفتح نافذة الأدمن -->
         <h1 class="logo" id="adminLogoBtn">NGym</h1>
         <p class="tagline">تطبيقك الذكي للياقة والتدريب</p>
         <button class="btn-main" id="startBtn">ابدأ رحلتك الآن ➔</button>
     </main>
 
-    <!-- النافذة المنبثقة لتسجيل دخول المسؤول (Admin Modal) -->
+    <!-- النافذة المنبثقة لتسجيل دخول ولوحة التحكم للمسؤول (Admin Modal & Panel) -->
     <div class="modal-overlay" id="adminModal">
         <div class="modal-box">
+            <!-- زر إغلاق النافذة X -->
             <span class="close-btn" id="closeModalBtn">&times;</span>
-            <h2 class="modal-title">تسجيل دخول المسؤول</h2>
-            <input type="password" id="adminPasswordInput" class="modal-input" placeholder="أدخل كلمة المرور">
-            <button class="modal-submit" id="submitAdminBtn">دخول 🔐</button>
+            
+            <!-- 1. شاشة إدخال كلمة المرور (تظهر أولاً) -->
+            <div id="adminLoginSection">
+                <h2 class="modal-title">تسجيل دخول المسؤول</h2>
+                <input type="password" id="adminPasswordInput" class="modal-input" placeholder="أدخل كلمة المرور">
+                <button class="modal-submit" id="submitAdminBtn">دخول 🔐</button>
+            </div>
+
+            <!-- 2. لوحة التحكم وتوليد الأكواد (تظهر بعد تسجيل الدخول الصحيح) -->
+            <div id="adminPanelSection" style="display: none;">
+                <h2 class="modal-title">لوحة إدارة الأكواد 🔑</h2>
+                
+                <label style="font-size: 14px; color: #aaa; display: block; margin-bottom: 8px;">اختر مدة الاشتراك:</label>
+                <select id="codeDurationSelect" class="modal-input">
+                    <option value="1M">شهر واحد (1M)</option>
+                    <option value="3M">3 أشهر (3M)</option>
+                    <option value="1Y">سنة كاملة (1Y)</option>
+                </select>
+
+                <button class="modal-submit" id="generateCodeBtn" style="margin-bottom: 16px;">توليد كود جديد ⚡</button>
+
+                <!-- الحاوية المخصصة لعرض الكود المولد مع زر النسخ -->
+                <div id="generatedCodeContainer" style="display: none; background: #121212; padding: 12px; border-radius: 8px; text-align: center; border: 1px dashed #2ecc71;">
+                    <span id="displayGeneratedCode" style="font-weight: bold; color: #2ecc71; font-size: 18px; display: block; margin-bottom: 8px;"></span>
+                    <button id="copyCodeBtn" style="background: #333; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;">نسخ الكود 📋</button>
+                </div>
+            </div>
         </div>
     </div>
 
