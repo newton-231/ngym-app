@@ -11,7 +11,8 @@ export default async function handler(req, res) {
     }
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`, {
+        // تحديث المسار إلى gemini-2.5-flash المعتمد في رسالة الخطأ
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json' 
