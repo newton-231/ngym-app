@@ -1,11 +1,89 @@
-// 1. تسجيل الـ Service Worker
+// ==========================================
+// 1. تسجيل الـ Service Worker للتطبيق (PWA)
+// ==========================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed:', err));
     });
 }
 
-// 2. طلب إذن التنبيهات وإرسال إشعار التمرين اليومي
+// ==========================================
+// 2. إعدادات Gemini API وتوفير التوكنز (طريقة آمنة)
+// ==========================================
+
+// دالة التواصل مع Gemini AI Coach بأقل استهلاك توكنز ممكن
+async function consultAIAgent(exerciseName, weight, reps) {
+    const aiResponseContainer = document.getElementById('aiCoachResponse');
+
+    // 🔑 جلب المفتاح من localStorage أو طلبه من المستخدم بشكل آمن دون كشفه في الكود
+    let GEMINI_API_KEY = localStorage.getItem('ngym_gemini_key');
+    
+    if (!GEMINI_API_KEY) {
+        GEMINI_API_KEY = prompt("🔐 يرجى إدخال مفتاح Gemini API الخاص بك لتفعيل الـ AI Coach:");
+        if (GEMINI_API_KEY) {
+            localStorage.setItem('ngym_gemini_key', GEMINI_API_KEY.trim());
+        } else {
+            if (aiResponseContainer) {
+                aiResponseContainer.innerText = "⚠️ يتطلب تشغيل المدرب الذكي إدخال مفتاح Gemini API.";
+            }
+            return;
+        }
+    }
+
+    if (aiResponseContainer) {
+        aiResponseContainer.innerText = "🤖 جاري تحليل أداءك بذكاء بواسطة Gemini...";
+    }
+
+    // جلب بيانات المتدرب من الـ LocalStorage
+    const savedProfile = localStorage.getItem('ngym_user');
+    const profile = savedProfile ? JSON.parse(savedProfile) : { goal: 'fitness', weight: 70, level: 'intermediate' };
+
+    // صياغة برومبت مختصر للغاية للتقليل من استهلاك التوكنز
+    const systemPrompt = `أنت AI Coach لتطبيق NGym. المتدرب هدفه: ${profile.goal} ووزنه ${profile.weight}كجم. أنجز تمرين ${exerciseName} بوزن ${weight}كجم و${reps} تكرارات. أعطه تقييماً وتوجيه للجولة القادمة في سطرين فقط وبإيموجي.`;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: systemPrompt }]
+                }],
+                generationConfig: {
+                    maxOutputTokens: 100, // يضمن عدم تجاوز الرد للتوكنز المحدودة للحفاظ على المجانية
+                    temperature: 0.7
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
+            const aiReply = data.candidates[0].content.parts[0].text;
+            if (aiResponseContainer) {
+                aiResponseContainer.innerText = `🤖 **توجيه الـ AI Coach:**\n${aiReply}`;
+            }
+        } else if (data.error) {
+            // في حال كان المفتاح المدخل غير صحيح يتم مسحه لطلب مفتاح جديد
+            localStorage.removeItem('ngym_gemini_key');
+            throw new Error("مفتاح API غير صالح، تم مسحه وإعادة الضبط.");
+        } else {
+            throw new Error("استجابة غير صالحة من الـ API");
+        }
+
+    } catch (error) {
+        console.error("Gemini API Error:", error);
+        if (aiResponseContainer) {
+            aiResponseContainer.innerText = "⚠️ تعذر التواصل مع الـ AI Coach حالياً. تحقق من صحة المفتاح والاتصال بالإنترنت.";
+        }
+    }
+}
+
+// ==========================================
+// 3. نظام التنبيهات المحلي (Notifications)
+// ==========================================
 function requestNotificationPermission() {
     if ('Notification' in window) {
         Notification.requestPermission().then(permission => {
@@ -29,30 +107,9 @@ function sendDailyWorkoutNotification() {
     }
 }
 
-// 3. محاكات/ربط الـ AI Agent للحصول على تحليل مخصص للتمرين
-async function consultAIAgent(exerciseName, weight, reps) {
-    const aiResponseContainer = document.getElementById('aiCoachResponse');
-    if (aiResponseContainer) {
-        aiResponseContainer.innerText = "جاري تحليل أداءك بواسطة الـ AI Agent... 🤖";
-    }
-
-    // هنا يتم ربط الـ API الخاص بـ OpenAI / Gemini أو السيرفر الخاص بك
-    // مثال لاستجابة الـ Agent بناءً على المدخلات:
-    setTimeout(() => {
-        let feedback = `رائع جداً! رفع ${weight} كجم لـ ${reps} تكرار في تمرين (${exerciseName}) أداء ممتاز. `;
-        if (reps >= 12) {
-            feedback += "نقترح زيادة الوزن بمقدار 2.5 كجم في الجولة القادمة للتضخيم الأفضل 💪.";
-        } else {
-            feedback += "حافظ على هذا الوزن وتركيز التكنيك للوصول لـ 12 تكرار 🎯.";
-        }
-
-        if (aiResponseContainer) {
-            aiResponseContainer.innerText = `🤖 نصيحة الـ AI Coach:\n${feedback}`;
-        }
-    }, 1000);
-}
-
-// تثبيت التطبيق PWA
+// ==========================================
+// 4. تثبيت التطبيق (PWA Prompt)
+// ==========================================
 let deferredPrompt;
 const installAppBtn = document.getElementById('installAppBtn');
 
@@ -72,7 +129,9 @@ if (installAppBtn) {
     });
 }
 
-// عناصر الواجهة
+// ==========================================
+// 5. عناصر الواجهة المتنوعة
+// ==========================================
 const adminLogoBtn = document.getElementById('adminLogoBtn');
 const adminModal = document.getElementById('adminModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
@@ -98,7 +157,7 @@ const backToHeroBtn = document.getElementById('backToHeroBtn');
 const activateCodeBtn = document.getElementById('activateCodeBtn');
 const userCodeInput = document.getElementById('userCodeInput');
 
-// عناصر البيانات والداشبورد
+// عناصر بيانات المستخدم والداشبورد
 const userGoalSelect = document.getElementById('userGoalSelect');
 const userWeightInput = document.getElementById('userWeightInput');
 const userHeightInput = document.getElementById('userHeightInput');
@@ -119,7 +178,9 @@ const goalMap = {
     fitness: "هدف الخطة: لياقة ورشاقة 🏃‍♂️"
 };
 
-// تمارين الأسبوع
+// ==========================================
+// 6. تمارين الأسبوع المفصلة
+// ==========================================
 const sampleWorkouts = {
     sat: {
         title: "تمرين الصدر والترابايس 💪",
@@ -156,7 +217,9 @@ const sampleWorkouts = {
     fri: { title: "يوم راحة 🧘‍♂️", exercises: [] }
 };
 
-// حساب السعرات والماكروز
+// ==========================================
+// 7. حساب السعرات الحرارية والماكروز
+// ==========================================
 function calculateNutrition(weight, height, goal) {
     let bmr = (10 * weight) + (6.25 * height) - (5 * 25) + 5; 
     let tdee = bmr * 1.45;
@@ -219,13 +282,15 @@ function renderNutritionAndAICard(profile) {
         <!-- صندوق رد الـ AI Agent -->
         <div style="background: #111; border: 1px dashed #333; border-radius: 12px; padding: 12px;">
             <p id="aiCoachResponse" style="color: #00ff66; font-size: 13px; margin: 0; line-height: 1.5;">
-                🤖 **AI Coach جاهز!** سجل أوزان التمرين اضغط "حفظ واستشارة AI" لتلقي التقييم الشامل.
+                🤖 **AI Coach (Gemini) جاهز!** سجل أوزان التمرين واضغط "حفظ واستشارة AI" لتلقي التقييم الشامل المباشر.
             </p>
         </div>
     `;
 }
 
-// فحص الدخول التلقائي
+// ==========================================
+// 8. فحص الدخول والأحداث
+// ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     const savedProfile = localStorage.getItem('ngym_user');
     if (savedProfile) {
@@ -239,106 +304,127 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// الأدمن والتنقل
-adminLogoBtn.addEventListener('click', () => {
-    clickCount++;
-    clearTimeout(clickTimer);
-    if (clickCount === 5) {
-        adminModal.style.display = 'flex';
-        adminPasswordInput.focus();
-        clickCount = 0;
-    } else {
-        clickTimer = setTimeout(() => { clickCount = 0; }, 2000);
-    }
-});
-
-closeModalBtn.addEventListener('click', () => {
-    adminModal.style.display = 'none';
-    adminPasswordInput.value = '';
-    adminLoginSection.style.display = 'block';
-    adminPanelSection.style.display = 'none';
-    generatedCodeContainer.style.display = 'none';
-});
-
-submitAdminBtn.addEventListener('click', () => {
-    if (adminPasswordInput.value.trim() === "Newton123") {
-        adminLoginSection.style.display = 'none';
-        adminPanelSection.style.display = 'block';
-        adminPasswordInput.value = '';
-    } else {
-        alert("كلمة المرور غير صحيحة!");
-    }
-});
-
-generateCodeBtn.addEventListener('click', () => {
-    const duration = codeDurationSelect.value;
-    const randomChars = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const newCode = `NGYM-${duration}-${randomChars}`;
-    activeCodes.push(newCode);
-    localStorage.setItem('ngym_codes', JSON.stringify(activeCodes));
-    displayGeneratedCode.innerText = newCode;
-    generatedCodeContainer.style.display = 'block';
-});
-
-copyCodeBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(displayGeneratedCode.innerText).then(() => {
-        alert(`تم نسخ الكود: ${displayGeneratedCode.innerText}`);
+// فتح لوحة الأدمن عند الضغط 5 مرات
+if (adminLogoBtn) {
+    adminLogoBtn.addEventListener('click', () => {
+        clickCount++;
+        clearTimeout(clickTimer);
+        if (clickCount === 5) {
+            adminModal.style.display = 'flex';
+            adminPasswordInput.focus();
+            clickCount = 0;
+        } else {
+            clickTimer = setTimeout(() => { clickCount = 0; }, 2000);
+        }
     });
-});
+}
 
-startBtn.addEventListener('click', () => {
-    heroSection.style.display = 'none';
-    codeActivationSection.style.display = 'block';
-});
+if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', () => {
+        adminModal.style.display = 'none';
+        adminPasswordInput.value = '';
+        adminLoginSection.style.display = 'block';
+        adminPanelSection.style.display = 'none';
+        generatedCodeContainer.style.display = 'none';
+    });
+}
 
-backToHeroBtn.addEventListener('click', () => {
-    codeActivationSection.style.display = 'none';
-    heroSection.style.display = 'block';
-});
+if (submitAdminBtn) {
+    submitAdminBtn.addEventListener('click', () => {
+        if (adminPasswordInput.value.trim() === "Newton123") {
+            adminLoginSection.style.display = 'none';
+            adminPanelSection.style.display = 'block';
+            adminPasswordInput.value = '';
+        } else {
+            alert("كلمة المرور غير صحيحة!");
+        }
+    });
+}
 
-activateCodeBtn.addEventListener('click', () => {
-    const enteredCode = userCodeInput.value.trim().toUpperCase();
-    if (!enteredCode) {
-        alert("الرجاء إدخال كود الاشتراك!");
-        return;
-    }
-    if (activeCodes.includes(enteredCode) || enteredCode.startsWith("NGYM-")) {
-        alert("تم تفعيل اشتراكك بنجاح! 🔥");
-        userCodeInput.value = '';
+if (generateCodeBtn) {
+    generateCodeBtn.addEventListener('click', () => {
+        const duration = codeDurationSelect.value;
+        const randomChars = Math.random().toString(36).substring(2, 7).toUpperCase();
+        const newCode = `NGYM-${duration}-${randomChars}`;
+        activeCodes.push(newCode);
+        localStorage.setItem('ngym_codes', JSON.stringify(activeCodes));
+        displayGeneratedCode.innerText = newCode;
+        generatedCodeContainer.style.display = 'block';
+    });
+}
+
+if (copyCodeBtn) {
+    copyCodeBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(displayGeneratedCode.innerText).then(() => {
+            alert(`تم نسخ الكود: ${displayGeneratedCode.innerText}`);
+        });
+    });
+}
+
+// أزرار التنقل للتطبيق
+if (startBtn) {
+    startBtn.addEventListener('click', () => {
+        heroSection.style.display = 'none';
+        codeActivationSection.style.display = 'block';
+    });
+}
+
+if (backToHeroBtn) {
+    backToHeroBtn.addEventListener('click', () => {
         codeActivationSection.style.display = 'none';
-        userOnboardingSection.style.display = 'block';
-    } else {
-        alert("كود الاشتراك غير صحيح!");
-    }
-});
+        heroSection.style.display = 'block';
+    });
+}
 
-saveProfileBtn.addEventListener('click', () => {
-    const weight = userWeightInput.value;
-    const height = userHeightInput.value;
+if (activateCodeBtn) {
+    activateCodeBtn.addEventListener('click', () => {
+        const enteredCode = userCodeInput.value.trim().toUpperCase();
+        if (!enteredCode) {
+            alert("الرجاء إدخال كود الاشتراك!");
+            return;
+        }
+        if (activeCodes.includes(enteredCode) || enteredCode.startsWith("NGYM-")) {
+            alert("تم تفعيل اشتراكك بنجاح! 🔥");
+            userCodeInput.value = '';
+            codeActivationSection.style.display = 'none';
+            userOnboardingSection.style.display = 'block';
+        } else {
+            alert("كود الاشتراك غير صحيح!");
+        }
+    });
+}
 
-    if (!weight || !height) {
-        alert("يرجى إدخال الوزن والطول!");
-        return;
-    }
+if (saveProfileBtn) {
+    saveProfileBtn.addEventListener('click', () => {
+        const weight = userWeightInput.value;
+        const height = userHeightInput.value;
 
-    const userProfile = {
-        goal: userGoalSelect.value,
-        weight: Number(weight),
-        height: Number(height),
-        level: userLevelSelect.value
-    };
+        if (!weight || !height) {
+            alert("يرجى إدخال الوزن والطول!");
+            return;
+        }
 
-    localStorage.setItem('ngym_user', JSON.stringify(userProfile));
-    userGoalBadge.innerText = goalMap[userProfile.goal];
-    userOnboardingSection.style.display = 'none';
-    dashboardSection.style.display = 'block';
-    
-    renderNutritionAndAICard(userProfile);
-    loadDayWorkout('sat');
-    requestNotificationPermission();
-});
+        const userProfile = {
+            goal: userGoalSelect.value,
+            weight: Number(weight),
+            height: Number(height),
+            level: userLevelSelect.value
+        };
 
-// عرض تمارين اليوم
+        localStorage.setItem('ngym_user', JSON.stringify(userProfile));
+        userGoalBadge.innerText = goalMap[userProfile.goal];
+        userOnboardingSection.style.display = 'none';
+        dashboardSection.style.display = 'block';
+        
+        renderNutritionAndAICard(userProfile);
+        loadDayWorkout('sat');
+        requestNotificationPermission();
+    });
+}
+
+// ==========================================
+// 9. عرض تمارين اليوم وإرسال البيانات للـ AI
+// ==========================================
 function loadDayWorkout(dayKey) {
     const data = sampleWorkouts[dayKey];
     workoutTitle.innerText = data.title;
@@ -396,10 +482,11 @@ function saveExerciseLog(exId, exName) {
     btn.style.background = '#27ae60';
     btn.innerText = 'تم التخزين وإرسال الأداء للـ AI ✅';
 
-    // استدعاء AI Agent لتحليل الوزن
+    // استدعاء Gemini AI Agent لتقديم التحليل المباشر
     consultAIAgent(exName, weightVal, repsVal);
 }
 
+// تنقل أيام الأسبوع
 document.querySelectorAll('.day-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
@@ -408,10 +495,14 @@ document.querySelectorAll('.day-btn').forEach(btn => {
     });
 });
 
-resetAccountBtn.addEventListener('click', () => {
-    if (confirm("هل أنت تأكد من تسجيل الخروج وإعادة الضبط؟")) {
-        localStorage.removeItem('ngym_user');
-        localStorage.removeItem('ngym_logs');
-        location.reload();
-    }
-});
+// إعادة الضبط
+if (resetAccountBtn) {
+    resetAccountBtn.addEventListener('click', () => {
+        if (confirm("هل أنت تأكد من تسجيل الخروج وإعادة الضبط؟")) {
+            localStorage.removeItem('ngym_user');
+            localStorage.removeItem('ngym_logs');
+            localStorage.removeItem('ngym_gemini_key');
+            location.reload();
+        }
+    });
+}
