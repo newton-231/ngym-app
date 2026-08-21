@@ -9,87 +9,48 @@
         body { background-color: #0b0f0e; color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
         .bg-gym-green { background-color: #10b981; }
         .text-gym-green { color: #10b981; }
-        .border-gym-green { border-color: #10b981; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between pb-20">
 
-    <!-- الرأس (Header) - السعرات والماكروز -->
     <header class="p-4 bg-gray-900 border-b border-gray-800 flex justify-between items-center select-none" id="main-header">
         <div class="flex items-center gap-3 cursor-pointer" id="logo-trigger">
             <div class="w-10 h-10 bg-gym-green rounded-full flex items-center justify-center font-bold text-black text-xl">NG</div>
             <div>
                 <h1 class="font-bold text-lg text-white">NGym</h1>
-                <p class="text-xs text-gray-400" id="sub-title">جاري تحميل البيانات الحالية...</p>
+                <p class="text-xs text-gray-400" id="sub-title">جاري التحقق من الاشتراك...</p>
             </div>
         </div>
         <div class="text-left">
             <span class="text-sm font-bold text-gym-green" id="calories-display">2,400 سعرة</span>
-            <div class="text-[10px] text-gray-400 flex gap-2">
-                <span>بروتين: <b class="text-white">160ج</b></span>
-                <span>كارب: <b class="text-white">250ج</b></span>
-            </div>
         </div>
     </header>
 
-    <!-- المحتوى الرئيسي (التبويبات) -->
     <main class="p-4 flex-1 overflow-y-auto">
-        <!-- قسم التغذية والشات -->
         <div id="tab-nutrition" class="space-y-4">
             <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-lg">
-                <h2 class="text-md font-bold mb-2 flex items-center gap-2">🤖 المدرب الذكي (AI Coach)</h2>
+                <h2 class="text-md font-bold mb-2">🤖 المدرب الذكي (AI Coach)</h2>
                 <div id="chat-box" class="h-64 overflow-y-auto space-y-3 p-2 bg-black/40 rounded-xl text-sm mb-3 border border-gray-800">
-                    <div class="bg-gray-800 p-3 rounded-xl max-w-[85%] text-gray-200">
-                        أهلاً بك يا بطل! 🦾 هل تتمرن اليوم في المنزل أم في الجيم؟ أخبرني لنحدد خطتك المناسبة!
-                    </div>
+                    <div class="bg-gray-800 p-3 rounded-xl max-w-[85%] text-gray-200">أهلاً بك يا بطل! 🦾 هل تتمرن اليوم؟</div>
                 </div>
                 <div class="flex gap-2">
-                    <input type="text" id="chat-input" placeholder="اكتب رسالتك هنا..." class="flex-1 bg-black border border-gray-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-gym-green">
-                    <button id="send-btn" class="bg-gym-green text-black font-bold px-5 py-2 rounded-xl text-sm hover:opacity-90 transition">إرسال</button>
+                    <input type="text" id="chat-input" placeholder="اكتب رسالتك..." class="flex-1 bg-black border border-gray-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-gym-green">
+                    <button id="send-btn" class="bg-gym-green text-black font-bold px-5 py-2 rounded-xl text-sm">إرسال</button>
                 </div>
             </div>
         </div>
 
-        <!-- قسم التمارين المستقل -->
         <div id="tab-workouts" class="space-y-4 hidden">
-            <h2 class="text-lg font-bold text-gym-green mb-2">🏋️ تمارين اليوم المستقلة</h2>
-            <div class="grid grid-cols-1 gap-3" id="workouts-list">
-                <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 flex justify-between items-center">
-                    <div>
-                        <h3 class="font-bold">تمارين الصدر (Chest Workout)</h3>
-                        <p class="text-xs text-gray-400">4 جولات × 12 تكرار</p>
-                    </div>
-                    <span class="text-xs bg-gym-green/20 text-gym-green px-3 py-1 rounded-full font-bold">مكتمل</span>
-                </div>
-            </div>
+            <h2 class="text-lg font-bold text-gym-green mb-2">🏋️ التمارين المستقلة</h2>
+            <div id="workouts-list" class="space-y-3"></div>
         </div>
     </main>
 
-    <!-- لوحة التحكم المخفية (Admin Modal) -->
-    <div id="admin-modal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl w-full max-w-sm relative">
-            <button id="close-admin" class="absolute top-4 left-4 text-gray-400 hover:text-white font-bold text-lg">✕</button>
-            <h3 class="text-lg font-bold mb-4 text-gym-green">لوحة تحكم المشرف</h3>
-            <input type="password" id="admin-pass" placeholder="أدخل كلمة المرور" class="w-full bg-black border border-gray-700 rounded-xl px-4 py-2 text-sm mb-3 focus:outline-none focus:border-gym-green">
-            <button id="login-admin" class="w-full bg-gym-green text-black font-bold py-2 rounded-xl text-sm">دخول وتوليد الأكواد</button>
-            <div id="admin-content" class="mt-4 hidden text-xs text-gray-300">
-                <p class="text-green-400 mb-2 font-bold">✓ تم تفعيل صلاحيات المشرف</p>
-                <p>الأكواد المدعومة: `NGYM-1M`, `NGYM-3M`, `NGYM-1Y`</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- الشريط السفلي للتبويبات -->
     <nav class="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 flex justify-around p-3 z-40">
-        <button onclick="switchTab('nutrition')" id="btn-tab-nut" class="text-gym-green font-bold text-sm flex flex-col items-center">
-            <span>🍏 التغذية والماكروز</span>
-        </button>
-        <button onclick="switchTab('workouts')" id="btn-tab-work" class="text-gray-400 font-bold text-sm flex flex-col items-center">
-            <span>💪 التمارين</span>
-        </button>
+        <button onclick="switchTab('nutrition')" id="btn-tab-nut" class="text-gym-green font-bold text-sm">🍏 التغذية</button>
+        <button onclick="switchTab('workouts')" id="btn-tab-work" class="text-gray-400 font-bold text-sm">💪 التمارين</button>
     </nav>
 
-    <!-- ربط ملف الـ JS الخارجي -->
     <script src="app.js"></script>
 </body>
 </html>
