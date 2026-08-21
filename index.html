@@ -28,7 +28,74 @@
         <button id="backToHeroBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">← العودة للخلف</button>
     </section>
 
-    <!-- 3. النافذة المنبثقة للمسؤول (Admin Modal & Panel) -->
+    <!-- 3. الشاشة الثالثة: واجهة البيانات الشخصية والهدف (User Onboarding Screen) -->
+    <section class="hero-container" id="userOnboardingSection" style="display: none; padding: 20px;">
+        <h2 style="color: var(--primary-green); font-size: 26px; margin-bottom: 8px;">بياناتك الرياضية 🎯</h2>
+        <p class="tagline" style="margin-bottom: 20px;">حدد هدفك وجسمك لضبط البرنامج المناسب</p>
+
+        <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">الهدف الرئيسي:</label>
+        <select id="userGoalSelect" class="modal-input">
+            <option value="bulking">تضخيم وزيادة كتلة عضلية 💪</option>
+            <option value="cutting">تنشيف وحرق الدهون 🔥</option>
+            <option value="fitness">لياقة وصحة عامة 🏃‍♂️</option>
+        </select>
+
+        <div style="display: flex; gap: 10px; width: 100%;">
+            <div style="flex: 1;">
+                <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">الوزن (كجم):</label>
+                <input type="number" id="userWeightInput" class="modal-input" placeholder="75">
+            </div>
+            <div style="flex: 1;">
+                <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">الطول (سم):</label>
+                <input type="number" id="userHeightInput" class="modal-input" placeholder="175">
+            </div>
+        </div>
+
+        <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">مستوى اللياقة الحالي:</label>
+        <select id="userLevelSelect" class="modal-input">
+            <option value="beginner">مبتدئ (أقل من 6 أشهر)</option>
+            <option value="intermediate">متوسط (6 أشهر - سنتين)</option>
+            <option value="advanced">متقدم (أكثر من سنتين)</option>
+        </select>
+
+        <button class="btn-main" id="saveProfileBtn" style="background-color: var(--primary-green); color: #fff; margin-top: 10px;">إنشاء الخطة التدريبية 🚀</button>
+    </section>
+
+    <!-- 4. الشاشة الرابعة: الواجهة الرئيسية للتمارين (Dashboard) -->
+    <section id="dashboardSection" style="display: none; padding: 20px; max-width: 500px; margin: 0 auto;">
+        <!-- الشريط العلوي -->
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 12px;">
+            <div>
+                <h2 style="font-size: 20px; color: #fff;">أهلاً بك يا بطل 🏋️‍♂️</h2>
+                <p id="userGoalBadge" style="font-size: 13px; color: var(--primary-green); font-weight: bold;"></p>
+            </div>
+            <div class="logo" style="font-size: 22px;">NGym</div>
+        </header>
+
+        <!-- شريط أيام الأسبوع -->
+        <div style="margin-bottom: 20px;">
+            <p style="font-size: 14px; color: #aaa; margin-bottom: 8px;">اختر اليوم التدريبي:</p>
+            <div id="daysContainer" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px;">
+                <button class="day-btn active" data-day="sat">السبت</button>
+                <button class="day-btn" data-day="sun">الأحد</button>
+                <button class="day-btn" data-day="mon">الإثنين</button>
+                <button class="day-btn" data-day="tue">الثلاثاء</button>
+                <button class="day-btn" data-day="wed">الأربعاء</button>
+                <button class="day-btn" data-day="thu">الخميس</button>
+                <button class="day-btn" data-day="fri">الجمعة</button>
+            </div>
+        </div>
+
+        <!-- عنوان عضلة اليوم -->
+        <h3 id="workoutTitle" style="color: #fff; margin-bottom: 15px; font-size: 18px;">تمارين اليوم 🎯</h3>
+
+        <!-- قائمة التمارين الديناميكية -->
+        <div id="exerciseList" style="display: flex; flex-direction: column; gap: 15px;">
+            <!-- يتم توليد التمارين هنا تلقائياً عبر JavaScript -->
+        </div>
+    </section>
+
+    <!-- 5. النافذة المنبثقة للمسؤول (Admin Modal & Panel) -->
     <div class="modal-overlay" id="adminModal">
         <div class="modal-box">
             <span class="close-btn" id="closeModalBtn">&times;</span>
