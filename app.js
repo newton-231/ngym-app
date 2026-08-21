@@ -1,11 +1,11 @@
-// تسجيل الـ Service Worker للعمل أوفلاين
+// تسجيل الـ Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
     });
 }
 
-// عناصر الواجهة (DOM Elements)
+// عناصر الواجهة
 const adminLogoBtn = document.getElementById('adminLogoBtn');
 const adminModal = document.getElementById('adminModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
@@ -20,7 +20,7 @@ const generatedCodeContainer = document.getElementById('generatedCodeContainer')
 const displayGeneratedCode = document.getElementById('displayGeneratedCode');
 const copyCodeBtn = document.getElementById('copyCodeBtn');
 
-// عناصر الشاشات والانتقال
+// الشاشات
 const heroSection = document.getElementById('heroSection');
 const codeActivationSection = document.getElementById('codeActivationSection');
 const userOnboardingSection = document.getElementById('userOnboardingSection');
@@ -40,50 +40,69 @@ const saveProfileBtn = document.getElementById('saveProfileBtn');
 const userGoalBadge = document.getElementById('userGoalBadge');
 const exerciseList = document.getElementById('exerciseList');
 const workoutTitle = document.getElementById('workoutTitle');
+const resetAccountBtn = document.getElementById('resetAccountBtn');
 
 let clickCount = 0;
 let clickTimer = null;
-let activeCodes = [];
-let userProfile = {};
+let activeCodes = JSON.parse(localStorage.getItem('ngym_codes')) || [];
 
-// قاعدة بيانات التمارين التجريبية لكل يوم
+// خريطة الأهداف
+const goalMap = {
+    bulking: "هدف الخطة: تضخيم عضلات 💪",
+    cutting: "هدف الخطة: تنشيف وخسارة دهون 🔥",
+    fitness: "هدف الخطة: لياقة ورشاقة 🏃‍♂️"
+};
+
+// تمارين كل يوم
 const sampleWorkouts = {
     sat: {
         title: "تمرين الصدر والترابايس 💪",
         exercises: [
-            { name: "ضغط الصدر مستوي بالبار (Bench Press)", sets: "4 جولات × 10 تكرارات", gif: "assets/gifs/bench-press.gif" },
-            { name: "تجميع صدر علوي بالدمبل (Incline Dumbbell Press)", sets: "3 جولات × 12 تكرار", gif: "assets/gifs/incline-press.gif" },
-            { name: "تجميع سلك سفلي (Cable Fly)", sets: "3 جولات × 15 تكرار", gif: "assets/gifs/cable-fly.gif" }
+            { name: "ضغط الصدر مستوي بالبار (Bench Press)", sets: "4 جولات × 10 تكرارات" },
+            { name: "تجميع صدر علوي بالدمبل (Incline Press)", sets: "3 جولات × 12 تكرار" },
+            { name: "تجميع سلك سفلي (Cable Fly)", sets: "3 جولات × 15 تكرار" }
         ]
     },
     sun: {
         title: "تمرين الظهر والبايسبس 🏋️‍♂️",
         exercises: [
-            { name: "سحب ظهر عالي (Lat Pulldown)", sets: "4 جولات × 12 تكرار", gif: "assets/gifs/lat-pulldown.gif" },
-            { name: "سحب بار أرضي (Barbell Row)", sets: "3 جولات × 10 تكرارات", gif: "assets/gifs/barbell-row.gif" },
-            { name: "تبادل بالدمبل للبايسبس (Bicep Curls)", sets: "3 جولات × 12 تكرار", gif: "assets/gifs/bicep-curl.gif" }
+            { name: "سحب ظهر عالي (Lat Pulldown)", sets: "4 جولات × 12 تكرار" },
+            { name: "سحب بار أرضي (Barbell Row)", sets: "3 جولات × 10 تكرارات" },
+            { name: "تبادل بالدمبل للبايسبس (Bicep Curls)", sets: "3 جولات × 12 تكرار" }
         ]
     },
     mon: { title: "يوم راحة واستشفاء 🧘‍♂️", exercises: [] },
     tue: {
         title: "تمرين الأكتاف والبطن 🛡️",
         exercises: [
-            { name: "ضغط أكتاف بالدمبل (Overhead Press)", sets: "4 جولات × 10 تكرارات", gif: "assets/gifs/shoulder-press.gif" },
-            { name: "رفرفة جانبي (Lateral Raises)", sets: "4 جولات × 15 تكرار", gif: "assets/gifs/lateral-raise.gif" }
+            { name: "ضغط أكتاف بالدمبل (Overhead Press)", sets: "4 جولات × 10 تكرارات" },
+            { name: "رفرفة جانبي (Lateral Raises)", sets: "4 جولات × 15 تكرار" }
         ]
     },
     wed: {
         title: "تمرين الأرجل والسكوات 🦵",
         exercises: [
-            { name: "سكوات بالبار (Barbell Squat)", sets: "4 جولات × 10 تكرارات", gif: "assets/gifs/squat.gif" },
-            { name: "دفع أرجل بالماكينة (Leg Press)", sets: "3 جولات × 12 تكرار", gif: "assets/gifs/leg-press.gif" }
+            { name: "سكوات بالبار (Barbell Squat)", sets: "4 جولات × 10 تكرارات" },
+            { name: "دفع أرجل بالماكينة (Leg Press)", sets: "3 جولات × 12 تكرار" }
         ]
     },
     thu: { title: "تمرين كارديو وبطن 🔥", exercises: [] },
     fri: { title: "يوم راحة 🧘‍♂️", exercises: [] }
 };
 
-// 1. فتح نافذة الأدمن بالضغط 5 مرات
+// فحص الدخول التلقائي إذا كان الحساب مسجلاً مسبقاً
+window.addEventListener('DOMContentLoaded', () => {
+    const savedProfile = localStorage.getItem('ngym_user');
+    if (savedProfile) {
+        const profile = JSON.parse(savedProfile);
+        userGoalBadge.innerText = goalMap[profile.goal];
+        heroSection.style.display = 'none';
+        dashboardSection.style.display = 'block';
+        loadDayWorkout('sat');
+    }
+});
+
+// 1. فتح نافذة الأدمن 5 ضغطات
 adminLogoBtn.addEventListener('click', () => {
     clickCount++;
     clearTimeout(clickTimer);
@@ -96,7 +115,6 @@ adminLogoBtn.addEventListener('click', () => {
     }
 });
 
-// 2. إغلاق النافذة
 closeModalBtn.addEventListener('click', () => {
     adminModal.style.display = 'none';
     adminPasswordInput.value = '';
@@ -105,38 +123,32 @@ closeModalBtn.addEventListener('click', () => {
     generatedCodeContainer.style.display = 'none';
 });
 
-// 3. تسجيل دخول الأدمن
 submitAdminBtn.addEventListener('click', () => {
-    const pass = adminPasswordInput.value.trim();
-    if (pass === "Newton123") {
+    if (adminPasswordInput.value.trim() === "Newton123") {
         adminLoginSection.style.display = 'none';
         adminPanelSection.style.display = 'block';
         adminPasswordInput.value = '';
     } else {
         alert("كلمة المرور غير صحيحة!");
-        adminPasswordInput.value = '';
     }
 });
 
-// 4. توليد كود
 generateCodeBtn.addEventListener('click', () => {
     const duration = codeDurationSelect.value;
     const randomChars = Math.random().toString(36).substring(2, 7).toUpperCase();
     const newCode = `NGYM-${duration}-${randomChars}`;
     activeCodes.push(newCode);
+    localStorage.setItem('ngym_codes', JSON.stringify(activeCodes));
     displayGeneratedCode.innerText = newCode;
     generatedCodeContainer.style.display = 'block';
 });
 
-// 5. نسخ الكود
 copyCodeBtn.addEventListener('click', () => {
-    const code = displayGeneratedCode.innerText;
-    navigator.clipboard.writeText(code).then(() => {
-        alert(`تم نسخ الكود: ${code}`);
+    navigator.clipboard.writeText(displayGeneratedCode.innerText).then(() => {
+        alert(`تم نسخ الكود: ${displayGeneratedCode.innerText}`);
     });
 });
 
-// 6. التنقل بين الشاشات
 startBtn.addEventListener('click', () => {
     heroSection.style.display = 'none';
     codeActivationSection.style.display = 'block';
@@ -147,62 +159,52 @@ backToHeroBtn.addEventListener('click', () => {
     heroSection.style.display = 'block';
 });
 
-// 7. تفعيل الكود
 activateCodeBtn.addEventListener('click', () => {
     const enteredCode = userCodeInput.value.trim().toUpperCase();
-    if (enteredCode === "") {
-        alert("الرجاء إدخال كود الاشتراك أولاً!");
+    if (!enteredCode) {
+        alert("الرجاء إدخال كود الاشتراك!");
         return;
     }
     if (activeCodes.includes(enteredCode) || enteredCode.startsWith("NGYM-")) {
-        alert("تم تفعيل اشتراكك بنجاح! مرحباً بك في NGym 🔥");
+        alert("تم تفعيل اشتراكك بنجاح! 🔥");
         userCodeInput.value = '';
         codeActivationSection.style.display = 'none';
         userOnboardingSection.style.display = 'block';
     } else {
-        alert("كود الاشتراك غير صحيح أو منتهي الصلاحية!");
+        alert("كود الاشتراك غير صحيح!");
     }
 });
 
-// 8. حفظ بيانات المشترك وعرض الواجهة الرئيسية
 saveProfileBtn.addEventListener('click', () => {
     const weight = userWeightInput.value;
     const height = userHeightInput.value;
 
     if (!weight || !height) {
-        alert("يرجى إدخال الوزن والطول بشكل صحيح!");
+        alert("يرجى إدخال الوزن والطول!");
         return;
     }
 
-    const goalMap = {
-        bulking: "هدف الخطة: تضخيم عضلات 💪",
-        cutting: "هدف الخطة: تنشيف وخسارة دهون 🔥",
-        fitness: "هدف الخطة: لياقة ورشاقة 🏃‍♂️"
-    };
-
-    userProfile = {
+    const userProfile = {
         goal: userGoalSelect.value,
         weight: weight,
         height: height,
         level: userLevelSelect.value
     };
 
+    localStorage.setItem('ngym_user', JSON.stringify(userProfile));
     userGoalBadge.innerText = goalMap[userProfile.goal];
     userOnboardingSection.style.display = 'none';
     dashboardSection.style.display = 'block';
-
-    // تحميل تمارين يوم السبت افتراضياً
     loadDayWorkout('sat');
 });
 
-// 9. دالة عرض تمارين اليوم المختار
 function loadDayWorkout(dayKey) {
     const data = sampleWorkouts[dayKey];
     workoutTitle.innerText = data.title;
     exerciseList.innerHTML = '';
 
     if (data.exercises.length === 0) {
-        exerciseList.innerHTML = `<div style="text-align: center; color: #888; padding: 30px; background: #121212; border-radius: 12px;">اليوم مخصص للراحة والاستشفاء، لا توجد تمارين 🧘‍♂️</div>`;
+        exerciseList.innerHTML = `<div style="text-align: center; color: #888; padding: 30px; background: #121212; border-radius: 12px;">اليوم مخصص للراحة والاستشفاء 🧘‍♂️</div>`;
         return;
     }
 
@@ -211,24 +213,25 @@ function loadDayWorkout(dayKey) {
         card.style.cssText = "background: #181818; border: 1px solid #2a2a2a; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px;";
         
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="color: #fff; font-size: 15px;">${index + 1}. ${ex.name}</h4>
-            </div>
+            <h4 style="color: #fff; font-size: 15px;">${index + 1}. ${ex.name}</h4>
             <p style="color: var(--primary-green); font-size: 13px; font-weight: bold;">${ex.sets}</p>
-            <div style="background: #111; height: 140px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px;">
-                [ صوّرة التمرين المتحركة GIF ]
-            </div>
             <button onclick="this.innerText='تم الإنجاز ✅'; this.style.background='#27ae60';" style="background: #333; color: #fff; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 5px;">تحديد كمكتمل</button>
         `;
         exerciseList.appendChild(card);
     });
 }
 
-// أزرار التنقل بين أيام الأسبوع
 document.querySelectorAll('.day-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         loadDayWorkout(e.target.getAttribute('data-day'));
     });
+});
+
+resetAccountBtn.addEventListener('click', () => {
+    if (confirm("هل أنت تأكد من تسجيل الخروج وإعادة الضبط؟")) {
+        localStorage.removeItem('ngym_user');
+        location.reload();
+    }
 });
