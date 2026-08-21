@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-        return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY غير موجود في إعدادات Vercel' });
+        return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY غير معرف في Vercel' });
     }
 
     try {
@@ -25,13 +25,15 @@ export default async function handler(req, res) {
         const data = await response.json();
 
         if (!response.ok) {
-            console.error('Gemini API Error:', data);
-            return res.status(response.status).json({ error: data.error?.message || 'خطأ من استجابة Gemini' });
+            console.error('Gemini API Error Details:', JSON.stringify(data));
+            return res.status(response.status).json({ 
+                error: data.error?.message || 'خطأ من استجابة Gemini API' 
+            });
         }
 
         return res.status(200).json(data);
     } catch (error) {
-        console.error('Server Handler Error:', error);
+        console.error('Fetch Execution Error:', error);
         return res.status(500).json({ error: 'حدث خطأ في الاتصال بالخادم الداخلي' });
     }
 }
