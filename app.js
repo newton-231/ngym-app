@@ -75,7 +75,7 @@ if (chatInput) {
     });
 }
 
-// هنا نقوم بإرسال الرسالة ومعالجتها مع Gemini API
+// هنا نقوم بإرسال الرسالة عبر Vercel API بأمان
 async function sendChatMessage() {
     const text = chatInput.value.trim();
     if (!text) return;
@@ -83,18 +83,6 @@ async function sendChatMessage() {
     // عرض رسالة المستخدم داخل المحادثة
     appendMessage(text, 'user');
     chatInput.value = '';
-
-    // جلب مفتاح الـ API المخزن محلياً
-    let GEMINI_API_KEY = localStorage.getItem('ngym_gemini_key');
-    if (!GEMINI_API_KEY) {
-        GEMINI_API_KEY = prompt("🔐 يرجى إدخال مفتاح Gemini API الخاص بك لتفعيل الذكاء الاصطناعي:");
-        if (GEMINI_API_KEY) {
-            localStorage.setItem('ngym_gemini_key', GEMINI_API_KEY.trim());
-        } else {
-            appendMessage("⚠️ يجب إدخال المفتاح لبدء المحادثة.", 'ai');
-            return;
-        }
-    }
 
     appendMessage("🤖 جاري التفكير...", 'ai-temp');
 
@@ -105,13 +93,11 @@ async function sendChatMessage() {
     const promptText = `أنت مدرب لياقة بدنية محترف لتطبيق NGym. بيانات المتدرب: الهدف ${profile.goal}، الوزن ${profile.weight}كجم. المتدرب يقول: "${text}". إذا حدد أنه يتمرن في (المنزل أو الجيم)، اقترح عليه 3 تمارين مناسبة لمكانه وإمكانياته بإيجاز شديد وبأسلوب محفز.`;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        // الإرسال إلى ملف /api/chat المجاني والمحمي داخل Vercel
+        const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: { maxOutputTokens: 150, temperature: 0.7 }
-            })
+            body: JSON.stringify({ promptText })
         });
 
         const data = await response.json();
@@ -120,7 +106,7 @@ async function sendChatMessage() {
         if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
             appendMessage(data.candidates[0].content.parts[0].text, 'ai');
         } else {
-            appendMessage("⚠️ تعذر الحصول على رد، تحقق من صحة مفتاح API.", 'ai');
+            appendMessage("⚠️ تعذر الحصول على رد من المدرب الذكي.", 'ai');
         }
     } catch (err) {
         removeTempMessage();
