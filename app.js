@@ -53,44 +53,84 @@ const goalMap = {
     fitness: "هدف الخطة: لياقة ورشاقة 🏃‍♂️"
 };
 
-// تمارين كل يوم
+// تمارين كل يوم مع روابط الـ GIF المتحركة
 const sampleWorkouts = {
     sat: {
         title: "تمرين الصدر والترابايس 💪",
         exercises: [
-            { name: "ضغط الصدر مستوي بالبار (Bench Press)", sets: "4 جولات × 10 تكرارات" },
-            { name: "تجميع صدر علوي بالدمبل (Incline Press)", sets: "3 جولات × 12 تكرار" },
-            { name: "تجميع سلك سفلي (Cable Fly)", sets: "3 جولات × 15 تكرار" }
+            { 
+                name: "ضغط الصدر مستوي بالبار (Bench Press)", 
+                sets: "4 جولات × 10 تكرارات",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Zsd24xbWZ4a2J2YmZ3MWpneGptdHFvbmF3NWJrb2p2Nnc5eXRvYiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKL3sC625wB2u4E/giphy.gif"
+            },
+            { 
+                name: "تجميع صدر علوي بالدمبل (Incline Press)", 
+                sets: "3 جولات × 12 تكرار",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNndnOHp3NGNxeW8zMnBsZjFuaTFxMmdxNmpsMWZxdndidWRiandhdiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0HlCqV35D6VIakP6/giphy.gif"
+            },
+            { 
+                name: "تجميع سلك سفلي (Cable Fly)", 
+                sets: "3 جولات × 15 تكرار",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZ1MmZyd2s5NzB1dW1ia2RwMWFwY3B5MWt5NnZ2OGw0NDJxbHFpYSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26u4PZJ04HkFq2L8k/giphy.gif"
+            }
         ]
     },
     sun: {
         title: "تمرين الظهر والبايسبس 🏋️‍♂️",
         exercises: [
-            { name: "سحب ظهر عالي (Lat Pulldown)", sets: "4 جولات × 12 تكرار" },
-            { name: "سحب بار أرضي (Barbell Row)", sets: "3 جولات × 10 تكرارات" },
-            { name: "تبادل بالدمبل للبايسبس (Bicep Curls)", sets: "3 جولات × 12 تكرار" }
+            { 
+                name: "سحب ظهر عالي (Lat Pulldown)", 
+                sets: "4 جولات × 12 تكرار",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZ1MmZyd2s5NzB1dW1ia2RwMWFwY3B5MWt5NnZ2OGw0NDJxbHFpYSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26u4PZJ04HkFq2L8k/giphy.gif"
+            },
+            { 
+                name: "سحب بار أرضي (Barbell Row)", 
+                sets: "3 جولات × 10 تكرارات",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Zsd24xbWZ4a2J2YmZ3MWpneGptdHFvbmF3NWJrb2p2Nnc5eXRvYiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKL3sC625wB2u4E/giphy.gif"
+            },
+            { 
+                name: "تبادل بالدمبل للبايسبس (Bicep Curls)", 
+                sets: "3 جولات × 12 تكرار",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNndnOHp3NGNxeW8zMnBsZjFuaTFxMmdxNmpsMWZxdndidWRiandhdiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0HlCqV35D6VIakP6/giphy.gif"
+            }
         ]
     },
     mon: { title: "يوم راحة واستشفاء 🧘‍♂️", exercises: [] },
     tue: {
         title: "تمرين الأكتاف والبطن 🛡️",
         exercises: [
-            { name: "ضغط أكتاف بالدمبل (Overhead Press)", sets: "4 جولات × 10 تكرارات" },
-            { name: "رفرفة جانبي (Lateral Raises)", sets: "4 جولات × 15 تكرار" }
+            { 
+                name: "ضغط أكتاف بالدمبل (Overhead Press)", 
+                sets: "4 جولات × 10 تكرارات",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Zsd24xbWZ4a2J2YmZ3MWpneGptdHFvbmF3NWJrb2p2Nnc5eXRvYiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKL3sC625wB2u4E/giphy.gif"
+            },
+            { 
+                name: "رفرفة جانبي (Lateral Raises)", 
+                sets: "4 جولات × 15 تكرار",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNndnOHp3NGNxeW8zMnBsZjFuaTFxMmdxNmpsMWZxdndidWRiandhdiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0HlCqV35D6VIakP6/giphy.gif"
+            }
         ]
     },
     wed: {
         title: "تمرين الأرجل والسكوات 🦵",
         exercises: [
-            { name: "سكوات بالبار (Barbell Squat)", sets: "4 جولات × 10 تكرارات" },
-            { name: "دفع أرجل بالماكينة (Leg Press)", sets: "3 جولات × 12 تكرار" }
+            { 
+                name: "سكوات بالبار (Barbell Squat)", 
+                sets: "4 جولات × 10 تكرارات",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Zsd24xbWZ4a2J2YmZ3MWpneGptdHFvbmF3NWJrb2p2Nnc5eXRvYiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKL3sC625wB2u4E/giphy.gif"
+            },
+            { 
+                name: "دفع أرجل بالماكينة (Leg Press)", 
+                sets: "3 جولات × 12 تكرار",
+                gif: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNndnOHp3NGNxeW8zMnBsZjFuaTFxMmdxNmpsMWZxdndidWRiandhdiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0HlCqV35D6VIakP6/giphy.gif"
+            }
         ]
     },
     thu: { title: "تمرين كارديو وبطن 🔥", exercises: [] },
     fri: { title: "يوم راحة 🧘‍♂️", exercises: [] }
 };
 
-// فحص الدخول التلقائي إذا كان الحساب مسجلاً مسبقاً
+// فحص الدخول التلقائي
 window.addEventListener('DOMContentLoaded', () => {
     const savedProfile = localStorage.getItem('ngym_user');
     if (savedProfile) {
@@ -102,7 +142,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 1. فتح نافذة الأدمن 5 ضغطات
+// فتح نافذة الأدمن 5 ضغطات
 adminLogoBtn.addEventListener('click', () => {
     clickCount++;
     clearTimeout(clickTimer);
@@ -198,6 +238,7 @@ saveProfileBtn.addEventListener('click', () => {
     loadDayWorkout('sat');
 });
 
+// عرض تمارين اليوم مع عرض صور الـ GIF
 function loadDayWorkout(dayKey) {
     const data = sampleWorkouts[dayKey];
     workoutTitle.innerText = data.title;
@@ -215,7 +256,13 @@ function loadDayWorkout(dayKey) {
         card.innerHTML = `
             <h4 style="color: #fff; font-size: 15px;">${index + 1}. ${ex.name}</h4>
             <p style="color: var(--primary-green); font-size: 13px; font-weight: bold;">${ex.sets}</p>
-            <button onclick="this.innerText='تم الإنجاز ✅'; this.style.background='#27ae60';" style="background: #333; color: #fff; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 5px;">تحديد كمكتمل</button>
+            
+            <div style="width: 100%; height: 180px; background: #111; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative;">
+                <img src="${ex.gif}" alt="${ex.name}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <span style="display: none; color: #666; font-size: 12px;">عذراً، تعذر تحميل حركة التمرين ⚠️</span>
+            </div>
+
+            <button onclick="this.innerText='تم الإنجاز ✅'; this.style.background='#27ae60';" style="background: #333; color: #fff; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 5px;">تحديد كمكتمل</button>
         `;
         exerciseList.appendChild(card);
     });
