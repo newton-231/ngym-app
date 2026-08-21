@@ -1,137 +1,123 @@
-// تسجيل الـ Service Worker لدعم الـ PWA والعمل أوفلاين
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-            .then(() => console.log("Service Worker Registered Successfully"))
-            .catch(err => console.log("Service Worker Registration Failed", err));
-    });
+// دوال التبويبات والتنقل بين الواجهات
+function switchTab(tab) {
+    const nutTab = document.getElementById('tab-nutrition');
+    const workTab = document.getElementById('tab-workouts');
+    const btnNut = document.getElementById('btn-tab-nut');
+    const btnWork = document.getElementById('btn-tab-work');
+
+    if (tab === 'nutrition') {
+        nutTab.classList.remove('hidden');
+        workTab.classList.add('hidden');
+        btnNut.className = "text-gym-green font-bold text-sm flex flex-col items-center";
+        btnWork.className = "text-gray-400 font-bold text-sm flex flex-col items-center";
+    } else {
+        nutTab.classList.add('hidden');
+        workTab.classList.remove('hidden');
+        btnNut.className = "text-gray-400 font-bold text-sm flex flex-col items-center";
+        btnWork.className = "text-gym-green font-bold text-sm flex flex-col items-center";
+    }
 }
 
-// إدارة لوحة تحكم الأدمن عند الضغط 5 مرات على اللوجو
-let logoClickCount = 0;
-const appLogo = document.getElementById('appLogo');
+// لوحة التحكم المخفية (الضغط 5 مرات على اللوجو)
+let clickCount = 0;
+const logoTrigger = document.getElementById('logo-trigger');
+const adminModal = document.getElementById('admin-modal');
+const closeAdmin = document.getElementById('close-admin');
+const loginAdmin = document.getElementById('login-admin');
 
-if (appLogo) {
-    appLogo.addEventListener('click', () => {
-        logoClickCount++;
-        if (logoClickCount === 5) {
-            logoClickCount = 0;
-            const password = prompt("🔐 أدخل كلمة السر الخاصة بلوحة التحكم:");
-            if (password === "Newton123") {
-                alert("تم التحقق بنجاح! مرحباً بك في لوحة الإدارة.");
-            } else {
-                alert("❌ كلمة السر غير صحيحة!");
-            }
+if (logoTrigger) {
+    logoTrigger.addEventListener('click', () => {
+        clickCount++;
+        if (clickCount >= 5) {
+            adminModal.classList.remove('hidden');
+            clickCount = 0;
         }
     });
 }
 
-// التحكم بالانتقال بين التبويبات (التغذية / التمارين)
-function switchTab(tabId, btnElement) {
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.style.display = 'none';
-    });
-    
-    document.getElementById(tabId).style.display = 'block';
-
-    document.querySelectorAll('.nav-tab-btn').forEach(btn => {
-        btn.style.color = '#888';
-    });
-    btnElement.style.color = '#00ff66';
-}
-
-// عناصر واجهة المحادثة مع الـ AI Coach
-const aiChatToggleBtn = document.getElementById('aiChatToggleBtn');
-const aiChatModal = document.getElementById('aiChatModal');
-const closeChatBtn = document.getElementById('closeChatBtn');
-const sendChatBtn = document.getElementById('sendChatBtn');
-const chatInput = document.getElementById('chatInput');
-const chatMessages = document.getElementById('chatMessages');
-
-if (aiChatToggleBtn) {
-    aiChatToggleBtn.addEventListener('click', () => {
-        aiChatModal.style.display = (aiChatModal.style.display === 'flex') ? 'none' : 'flex';
+if (closeAdmin) {
+    closeAdmin.addEventListener('click', () => {
+        adminModal.classList.add('hidden');
     });
 }
 
-if (closeChatBtn) {
-    closeChatBtn.addEventListener('click', () => {
-        aiChatModal.style.display = 'none';
+if (loginAdmin) {
+    loginAdmin.addEventListener('click', () => {
+        const pass = document.getElementById('admin-pass').value;
+        // كلمة مرور مبدئية للمشرف (يمكنك تعديلها)
+        if (pass === 'admin123' || pass === 'NGYM') {
+            document.getElementById('admin-content').classList.remove('hidden');
+            alert('تم الدوحة بنجاح لوحة التحكم مفعلة');
+        } else {
+            alert('كلمة المرور غير صحيحة');
+        }
     });
 }
 
-if (sendChatBtn) {
-    sendChatBtn.addEventListener('click', sendChatMessage);
-}
+// إدارة الشات وإرسال الرسائل للخادم (API)
+const sendBtn = document.getElementById('send-btn');
+const chatInput = document.getElementById('chat-input');
+const chatBox = document.getElementById('chat-box');
 
-if (chatInput) {
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendChatMessage();
-    });
-}
-
-// إرسال الرسالة إلى السيرفر الآمن /api/chat
-async function sendChatMessage() {
+async function handleSendMessage() {
     const text = chatInput.value.trim();
     if (!text) return;
 
-    appendMessage(text, 'user');
+    // إضافة رسالة المستخدم للواجهة
+    chatBox.innerHTML += `<div class="bg-gym-green text-black p-3 rounded-xl max-w-[85%] ml-auto font-medium">${text}</div>`;
     chatInput.value = '';
-    appendMessage("🤖 جاري التفكير...", 'ai-temp');
+    chatBox.scrollTop = chatBox.scrollHeight;
 
-    const savedProfile = localStorage.getItem('ngym_user');
-    const profile = savedProfile ? JSON.parse(savedProfile) : { goal: 'fitness', weight: 70 };
-
-    const promptText = `أنت مدرب لياقة بدنية محترف لتطبيق NGym. بيانات المتدرب: الهدف ${profile.goal}، الوزن ${profile.weight}كجم. المتدرب يقول: "${text}". إذا حدد أنه يتمرن في (المنزل أو الجيم)، اقترح عليه 3 تمارين مناسبة لمكانه وإمكانياته بإيجاز شديد وبأسلوب محفز.`;
+    // إضافة مؤشر التحميل المؤقت
+    const loadingId = 'loading-' + Date.now();
+    chatBox.innerHTML += `<div id="${loadingId}" class="bg-gray-800 p-3 rounded-xl max-w-[85%] text-gray-400 animate-pulse">جاري الرد...</div>`;
+    chatBox.scrollTop = chatBox.scrollHeight;
 
     try {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ promptText })
+            body: JSON.stringify({ promptText: text })
         });
 
         const data = await response.json();
-        removeTempMessage();
+        
+        // إزالة مؤشر التحميل
+        document.getElementById(loadingId)?.remove();
 
-        if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
-            appendMessage(data.candidates[0].content.parts[0].text, 'ai');
+        if (response.ok) {
+            const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'عذراً، لم أتمكن من صياغة الرد.';
+            chatBox.innerHTML += `<div class="bg-gray-800 p-3 rounded-xl max-w-[85%] text-gray-200">${reply}</div>`;
         } else {
-            const errorMsg = data.error || "تعذر الحصول على رد من المدرب الذكي.";
-            appendMessage(`⚠️ ${errorMsg}`, 'ai');
+            chatBox.innerHTML += `<div class="bg-red-900/50 text-red-200 p-3 rounded-xl max-w-[85%]">خطأ: ${data.error || 'حدث خطأ في النظام'}</div>`;
         }
-    } catch (err) {
-        removeTempMessage();
-        appendMessage("⚠️ حدث خطأ في الاتصال بالسيرفر.", 'ai');
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+    } catch (error) {
+        document.getElementById(loadingId)?.remove();
+        chatBox.innerHTML += `<div class="bg-red-900/50 text-red-200 p-3 rounded-xl max-w-[85%]">فشل الاتصال بالخادم. تحقق من الإنترنت.</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
 }
 
-// إضافة الفقرة النصية داخل مربع الشات
-function appendMessage(msg, sender) {
-    const div = document.createElement('div');
-    div.style.padding = "8px 12px";
-    div.style.borderRadius = "8px";
-    div.style.maxWidth = "85%";
-    div.style.lineHeight = "1.4";
+if (sendBtn) {
+    sendBtn.addEventListener('click', handleSendMessage);
+}
 
-    if (sender === 'user') {
-        div.style.background = "#00ff66";
-        div.style.color = "#000";
-        div.style.alignSelf = "flex-end";
-    } else {
-        div.style.background = "#222";
-        div.style.color = "#fff";
-        div.style.alignSelf = "flex-start";
-        if (sender === 'ai-temp') div.id = 'tempMsg';
+if (chatInput) {
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleSendMessage();
+        }
+    });
+}
+
+// تهيئة البيانات عند فتح التطبيق
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('sub-title').innerText = 'احتياجك الغذائي اليومي';
+    // التحقق من حالة الاشتراك أو الأكواد المحفوظة محلياً
+    const savedSub = localStorage.getItem('ngym_subscription');
+    if (!savedSub) {
+        localStorage.setItem('ngym_subscription', 'active');
     }
-
-    div.innerText = msg;
-    chatMessages.appendChild(div);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-// حذف مؤشر التفكير
-function removeTempMessage() {
-    const temp = document.getElementById('tempMsg');
-    if (temp) temp.remove();
-}
+});
