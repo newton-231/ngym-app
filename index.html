@@ -4,129 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NGym - مدربك الذكي</title>
-    
-    <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2ecc71">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- 1. الشاشة الأولى: واجهة البداية (Hero Screen) -->
-    <main class="hero-container" id="heroSection">
-        <h1 class="logo" id="adminLogoBtn">NGym</h1>
-        <p class="tagline">تطبيقك الذكي للياقة والتدريب</p>
-        <button class="btn-main" id="startBtn">ابدأ رحلتك الآن ➔</button>
+    <!-- الهيدر واللوجو الرئيسي -->
+    <header style="background: #141414; padding: 15px; text-align: center; border-bottom: 1px solid #222;">
+        <h1 id="appLogo" style="color: #00ff66; margin: 0; font-size: 24px; cursor: pointer;">NGym 🦾</h1>
+    </header>
+
+    <!-- الواجهة الرئيسية للتطبيق -->
+    <main id="dashboardSection" style="padding: 20px; padding-bottom: 80px;">
+        
+        <!-- التبويب الأول: التغذية والماكروز -->
+        <section id="tabNutrition" class="tab-content">
+            <h2 style="color: #00ff66; font-size: 18px; margin-bottom: 15px;">احتياجك الغذائي اليومي 🥗</h2>
+            <div id="nutritionCardContainer">
+                <p style="color: #aaa; font-size: 14px;">جاري تحميل البيانات الحالية...</p>
+            </div>
+        </section>
+
+        <!-- التبويب الثاني: التمارين وسجل الأوزان -->
+        <section id="tabWorkouts" class="tab-content" style="display: none;">
+            <h2 style="color: #fff; font-size: 18px; margin-bottom: 15px;">جدول التمارين وسجل الجولات 🏋️‍♂️</h2>
+            <div id="exerciseList">
+                <p style="color: #aaa; font-size: 14px;">تحدث مع المدرب الذكي لترشيح جدول اليوم أو سجل أوزانك.</p>
+            </div>
+        </section>
+
     </main>
 
-    <!-- 2. الشاشة الثانية: واجهة تفعيل الاشتراك (Code Activation Screen) -->
-    <section class="hero-container" id="codeActivationSection" style="display: none;">
-        <h2 style="color: var(--primary-green); font-size: 28px; margin-bottom: 12px;">تفعيل الاشتراك 🔑</h2>
-        <p class="tagline" style="margin-bottom: 24px;">أدخل كود الاشتراك الخاص بك للبدء</p>
+    <!-- شريط التنقل السفلي (Bottom Navigation Bar) -->
+    <nav style="position: fixed; bottom: 0; left: 0; right: 0; background: #141414; border-top: 1px solid #222; display: flex; justify-content: space-around; padding: 10px 0; z-index: 999;">
+        <button onclick="switchTab('tabNutrition', this)" class="nav-tab-btn active" style="background: none; border: none; color: #00ff66; font-size: 13px; font-weight: bold; cursor: pointer;">
+            🥗<br>التغذية والماكروز
+        </button>
+        <button onclick="switchTab('tabWorkouts', this)" class="nav-tab-btn" style="background: none; border: none; color: #888; font-size: 13px; font-weight: bold; cursor: pointer;">
+            🏋️‍♂️<br>التمارين
+        </button>
+    </nav>
+
+    <!-- زر الـ AI Agent العائم -->
+    <button id="aiChatToggleBtn" style="position: fixed; bottom: 75px; left: 20px; background: #00ff66; color: #000; border: none; border-radius: 50%; width: 55px; height: 55px; font-size: 26px; cursor: pointer; z-index: 1000; box-shadow: 0 4px 12px rgba(0,255,102,0.3);">
+        🤖
+    </button>
+
+    <!-- نافذة المحادثة المباشرة مع المدرب الذكي -->
+    <div id="aiChatModal" style="display: none; position: fixed; bottom: 140px; left: 20px; width: 320px; height: 400px; background: #141414; border: 1px solid #333; border-radius: 12px; z-index: 1000; flex-direction: column; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.8);">
+        <!-- هنا عنوان نافذة الشات -->
+        <div style="background: #222; padding: 12px; color: #00ff66; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+            <span>🤖 AI Coach (Gemini)</span>
+            <button id="closeChatBtn" style="background: none; border: none; color: #fff; font-size: 16px; cursor: pointer;">✕</button>
+        </div>
         
-        <input type="text" id="userCodeInput" class="modal-input" placeholder="مثال: NGYM-1M-AB12C" style="text-transform: uppercase; letter-spacing: 1px;">
-        <button class="btn-main" id="activateCodeBtn" style="background-color: var(--primary-green); color: #fff; margin-bottom: 12px;">تفعيل الحساب ⚡</button>
-        <button id="backToHeroBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">← العودة للخلف</button>
-    </section>
-
-    <!-- 3. الشاشة الثالثة: واجهة البيانات الشخصية والهدف (User Onboarding Screen) -->
-    <section class="hero-container" id="userOnboardingSection" style="display: none; padding: 20px;">
-        <h2 style="color: var(--primary-green); font-size: 26px; margin-bottom: 8px;">بياناتك الرياضية 🎯</h2>
-        <p class="tagline" style="margin-bottom: 20px;">حدد هدفك وجسمك لضبط البرنامج المناسب</p>
-
-        <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">الهدف الرئيسي:</label>
-        <select id="userGoalSelect" class="modal-input">
-            <option value="bulking">تضخيم وزيادة كتلة عضلية 💪</option>
-            <option value="cutting">تنشيف وحرق الدهون 🔥</option>
-            <option value="fitness">لياقة وصحة عامة 🏃‍♂️</option>
-        </select>
-
-        <div style="display: flex; gap: 10px; width: 100%;">
-            <div style="flex: 1;">
-                <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">الوزن (كجم):</label>
-                <input type="number" id="userWeightInput" class="modal-input" placeholder="75">
-            </div>
-            <div style="flex: 1;">
-                <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">الطول (سم):</label>
-                <input type="number" id="userHeightInput" class="modal-input" placeholder="175">
+        <!-- هنا صندوق عرض الرسائل -->
+        <div id="chatMessages" style="flex: 1; padding: 10px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="background: #222; color: #fff; padding: 8px 12px; border-radius: 8px; align-self: flex-start; max-width: 85%;">
+                أهلاً بك يا بطل! 🦾 هل تتمرن اليوم في المنزل أم في الجيم؟ أخبرني لنحدد خطتك المناسبة!
             </div>
         </div>
-
-        <label style="font-size: 14px; color: #aaa; display: block; text-align: right; margin-bottom: 6px;">مستوى اللياقة الحالي:</label>
-        <select id="userLevelSelect" class="modal-input">
-            <option value="beginner">مبتدئ (أقل من 6 أشهر)</option>
-            <option value="intermediate">متوسط (6 أشهر - سنتين)</option>
-            <option value="advanced">متقدم (أكثر من سنتين)</option>
-        </select>
-
-        <button class="btn-main" id="saveProfileBtn" style="background-color: var(--primary-green); color: #fff; margin-top: 10px;">إنشاء الخطة التدريبية 🚀</button>
-    </section>
-
-    <!-- 4. الشاشة الرابعة: الواجهة الرئيسية للتمارين (Dashboard) -->
-    <section id="dashboardSection" style="display: none; padding: 20px; width: 100%; max-width: 500px; margin: 0 auto;">
-        <!-- الشريط العلوي -->
-        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 12px;">
-            <div>
-                <h2 style="font-size: 20px; color: #fff;">أهلاً بك يا بطل 🏋️‍♂️</h2>
-                <p id="userGoalBadge" style="font-size: 13px; color: var(--primary-green); font-weight: bold;"></p>
-            </div>
-            <div class="logo" style="font-size: 22px;">NGym</div>
-        </header>
-
-        <!-- شريط أيام الأسبوع -->
-        <div style="margin-bottom: 20px;">
-            <p style="font-size: 14px; color: #aaa; margin-bottom: 8px;">اختر اليوم التدريبي:</p>
-            <div id="daysContainer" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px;">
-                <button class="day-btn active" data-day="sat">السبت</button>
-                <button class="day-btn" data-day="sun">الأحد</button>
-                <button class="day-btn" data-day="mon">الإثنين</button>
-                <button class="day-btn" data-day="tue">الثلاثاء</button>
-                <button class="day-btn" data-day="wed">الأربعاء</button>
-                <button class="day-btn" data-day="thu">الخميس</button>
-                <button class="day-btn" data-day="fri">الجمعة</button>
-            </div>
-        </div>
-
-        <!-- عنوان عضلة اليوم -->
-        <h3 id="workoutTitle" style="color: #fff; margin-bottom: 15px; font-size: 18px;">تمارين اليوم 🎯</h3>
-
-        <!-- قائمة التمارين الديناميكية -->
-        <div id="exerciseList" style="display: flex; flex-direction: column; gap: 15px;">
-            <!-- توليد التمارين هنا تلقائياً -->
-        </div>
-
-        <button id="resetAccountBtn" style="background: none; border: 1px solid #444; color: #888; padding: 8px 16px; border-radius: 6px; margin-top: 30px; width: 100%; cursor: pointer; font-size: 12px;">إعادة ضبط التطبيق وخروج 🚪</button>
-    </section>
-
-    <!-- 5. النافذة المنبثقة للمسؤول (Admin Modal & Panel) -->
-    <div class="modal-overlay" id="adminModal">
-        <div class="modal-box">
-            <span class="close-btn" id="closeModalBtn">&times;</span>
-            
-            <!-- تسجيل الدخول -->
-            <div id="adminLoginSection">
-                <h2 class="modal-title">تسجيل دخول المسؤول</h2>
-                <input type="password" id="adminPasswordInput" class="modal-input" placeholder="أدخل كلمة المرور">
-                <button class="modal-submit" id="submitAdminBtn">دخول 🔐</button>
-            </div>
-
-            <!-- لوحة إدارة الأكواد -->
-            <div id="adminPanelSection" style="display: none;">
-                <h2 class="modal-title">لوحة إدارة الأكواد 🔑</h2>
-                
-                <label style="font-size: 14px; color: #aaa; display: block; margin-bottom: 8px;">اختر مدة الاشتراك:</label>
-                <select id="codeDurationSelect" class="modal-input">
-                    <option value="1M">شهر واحد (1M)</option>
-                    <option value="3M">3 أشهر (3M)</option>
-                    <option value="1Y">سنة كاملة (1Y)</option>
-                </select>
-
-                <button class="modal-submit" id="generateCodeBtn" style="margin-bottom: 16px;">توليد كود جديد ⚡</button>
-
-                <div id="generatedCodeContainer" style="display: none; background: #121212; padding: 12px; border-radius: 8px; text-align: center; border: 1px dashed #2ecc71;">
-                    <span id="displayGeneratedCode" style="font-weight: bold; color: #2ecc71; font-size: 18px; display: block; margin-bottom: 8px;"></span>
-                    <button id="copyCodeBtn" style="background: #333; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;">نسخ الكود 📋</button>
-                </div>
-            </div>
+        
+        <!-- هنا حقل إدخال الرسالة وزر الإرسال -->
+        <div style="padding: 10px; background: #1a1a1a; display: flex; gap: 5px;">
+            <input type="text" id="chatInput" placeholder="اكتب رسالتك هنا..." style="flex: 1; background: #0d0d0d; border: 1px solid #333; color: #fff; padding: 8px; border-radius: 6px; font-size: 12px; outline: none;">
+            <button id="sendChatBtn" style="background: #00ff66; color: #000; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">إرسال</button>
         </div>
     </div>
 
