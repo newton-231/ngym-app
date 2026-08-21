@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGym - مدربك الذكي</title>
+    
+    <!-- ربط ملف التنسيقات ورابط الـ PWA -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2ecc71">
+</head>
+<body>
+
+    <!-- الواجهة الرئيسية (Hero Screen) -->
+    <main class="hero-container">
+        <!-- عند الضغط 5 مرات هنا تفتح نافذة الأدمن -->
+        <h1 class="logo" id="adminLogoBtn">NGym</h1>
+        <p class="tagline">تطبيقك الذكي للياقة والتدريب</p>
+        <button class="btn-main" id="startBtn">ابدأ رحلتك الآن ➔</button>
+    </main>
+
+    <!-- النافذة المنبثقة لتسجيل دخول المسؤول (Admin Modal) -->
+    <div class="modal-overlay" id="adminModal">
+        <div class="modal-box">
+            <span class="close-btn" id="closeModalBtn">&times;</span>
+            <h2 class="modal-title">تسجيل دخول المسؤول</h2>
+            <input type="password" id="adminPasswordInput" class="modal-input" placeholder="أدخل كلمة المرور">
+            <button class="modal-submit" id="submitAdminBtn">دخول 🔐</button>
+        </div>
+    </div>
+
+    <!-- ربط السكربت البرمجي الرئيسي -->
+    <script src="app.js"></script>
+</body>
+</html>
