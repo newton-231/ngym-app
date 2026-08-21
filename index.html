@@ -5,35 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NGym - مدربك الذكي</title>
     
-    <!-- ربط ملف التنسيقات ورابط الـ PWA -->
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2ecc71">
 </head>
 <body>
 
-    <!-- الواجهة الرئيسية (Hero Screen) -->
-    <main class="hero-container">
-        <!-- عند الضغط 5 مرات متتالية هنا تفتح نافذة الأدمن -->
+    <!-- 1. الشاشة الأولى: واجهة البداية (Hero Screen) -->
+    <main class="hero-container" id="heroSection">
         <h1 class="logo" id="adminLogoBtn">NGym</h1>
         <p class="tagline">تطبيقك الذكي للياقة والتدريب</p>
         <button class="btn-main" id="startBtn">ابدأ رحلتك الآن ➔</button>
     </main>
 
-    <!-- النافذة المنبثقة لتسجيل دخول ولوحة التحكم للمسؤول (Admin Modal & Panel) -->
+    <!-- 2. الشاشة الثانية: واجهة تفعيل الاشتراك (Code Activation Screen) -->
+    <section class="hero-container" id="codeActivationSection" style="display: none;">
+        <h2 style="color: var(--primary-green); font-size: 28px; margin-bottom: 12px;">تفعيل الاشتراك 🔑</h2>
+        <p class="tagline" style="margin-bottom: 24px;">أدخل كود الاشتراك الخاص بك للبدء</p>
+        
+        <input type="text" id="userCodeInput" class="modal-input" placeholder="مثال: NGYM-1M-AB12C" style="text-transform: uppercase; letter-spacing: 1px;">
+        <button class="btn-main" id="activateCodeBtn" style="background-color: var(--primary-green); color: #fff; margin-bottom: 12px;">تفعيل الحساب ⚡</button>
+        <button id="backToHeroBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">← العودة للخلف</button>
+    </section>
+
+    <!-- 3. النافذة المنبثقة للمسؤول (Admin Modal & Panel) -->
     <div class="modal-overlay" id="adminModal">
         <div class="modal-box">
-            <!-- زر إغلاق النافذة X -->
             <span class="close-btn" id="closeModalBtn">&times;</span>
             
-            <!-- 1. شاشة إدخال كلمة المرور (تظهر أولاً) -->
+            <!-- تسجيل الدخول -->
             <div id="adminLoginSection">
                 <h2 class="modal-title">تسجيل دخول المسؤول</h2>
                 <input type="password" id="adminPasswordInput" class="modal-input" placeholder="أدخل كلمة المرور">
                 <button class="modal-submit" id="submitAdminBtn">دخول 🔐</button>
             </div>
 
-            <!-- 2. لوحة التحكم وتوليد الأكواد (تظهر بعد تسجيل الدخول الصحيح) -->
+            <!-- لوحة إدارة الأكواد -->
             <div id="adminPanelSection" style="display: none;">
                 <h2 class="modal-title">لوحة إدارة الأكواد 🔑</h2>
                 
@@ -46,7 +53,6 @@
 
                 <button class="modal-submit" id="generateCodeBtn" style="margin-bottom: 16px;">توليد كود جديد ⚡</button>
 
-                <!-- الحاوية المخصصة لعرض الكود المولد مع زر النسخ -->
                 <div id="generatedCodeContainer" style="display: none; background: #121212; padding: 12px; border-radius: 8px; text-align: center; border: 1px dashed #2ecc71;">
                     <span id="displayGeneratedCode" style="font-weight: bold; color: #2ecc71; font-size: 18px; display: block; margin-bottom: 8px;"></span>
                     <button id="copyCodeBtn" style="background: #333; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;">نسخ الكود 📋</button>
@@ -55,7 +61,6 @@
         </div>
     </div>
 
-    <!-- ربط السكربت البرمجي الرئيسي -->
     <script src="app.js"></script>
 </body>
 </html>
