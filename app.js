@@ -1,17 +1,16 @@
-// تسجيل الـ Service Worker
+// تسجيل الـ Service Worker للعمل أوفلاين
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
     });
 }
 
-// عناصر الواجهة
+// عناصر الواجهة (DOM Elements)
 const adminLogoBtn = document.getElementById('adminLogoBtn');
 const adminModal = document.getElementById('adminModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const submitAdminBtn = document.getElementById('submitAdminBtn');
 const adminPasswordInput = document.getElementById('adminPasswordInput');
-const startBtn = document.getElementById('startBtn');
 
 const adminLoginSection = document.getElementById('adminLoginSection');
 const adminPanelSection = document.getElementById('adminPanelSection');
@@ -21,10 +20,21 @@ const generatedCodeContainer = document.getElementById('generatedCodeContainer')
 const displayGeneratedCode = document.getElementById('displayGeneratedCode');
 const copyCodeBtn = document.getElementById('copyCodeBtn');
 
+// عناصر الشاشات والانتقال
+const heroSection = document.getElementById('heroSection');
+const codeActivationSection = document.getElementById('codeActivationSection');
+const startBtn = document.getElementById('startBtn');
+const backToHeroBtn = document.getElementById('backToHeroBtn');
+const activateCodeBtn = document.getElementById('activateCodeBtn');
+const userCodeInput = document.getElementById('userCodeInput');
+
 let clickCount = 0;
 let clickTimer = null;
 
-// 1. الفتح عند الضغط 5 مرات
+// قائمة حفظ الأكواد النشطة مؤقتاً في الذاكرة
+let activeCodes = [];
+
+// 1. الفتح عند الضغط 5 مرات متتالية على اللوجو
 adminLogoBtn.addEventListener('click', () => {
     clickCount++;
     clearTimeout(clickTimer);
@@ -38,7 +48,7 @@ adminLogoBtn.addEventListener('click', () => {
     }
 });
 
-// 2. إغلاق النافذة
+// 2. إغلاق النافذة المنبثقة للأدمن
 closeModalBtn.addEventListener('click', () => {
     adminModal.style.display = 'none';
     adminPasswordInput.value = '';
@@ -47,7 +57,7 @@ closeModalBtn.addEventListener('click', () => {
     generatedCodeContainer.style.display = 'none';
 });
 
-// 3. التحقق من كلمة المرور وفتح اللوحة
+// 3. دخول الأدمن والتحقق من كلمة المرور
 submitAdminBtn.addEventListener('click', () => {
     const pass = adminPasswordInput.value.trim();
     if (pass === "Newton123") {
@@ -60,17 +70,18 @@ submitAdminBtn.addEventListener('click', () => {
     }
 });
 
-// 4. دالة توليد أكواد عشوائية فريدة
+// 4. توليد كود وتخزينه
 generateCodeBtn.addEventListener('click', () => {
     const duration = codeDurationSelect.value;
     const randomChars = Math.random().toString(36).substring(2, 7).toUpperCase();
     const newCode = `NGYM-${duration}-${randomChars}`;
 
+    activeCodes.push(newCode); // إضافة الكود للقائمة المعتمدة
     displayGeneratedCode.innerText = newCode;
     generatedCodeContainer.style.display = 'block';
 });
 
-// 5. نسخ الكود
+// 5. نسخ الكود المولد
 copyCodeBtn.addEventListener('click', () => {
     const code = displayGeneratedCode.innerText;
     navigator.clipboard.writeText(code).then(() => {
@@ -78,7 +89,32 @@ copyCodeBtn.addEventListener('click', () => {
     });
 });
 
-// زر ابدأ
+// 6. التنقل بين الشاشات (الانتقال لصفحة التفعيل)
 startBtn.addEventListener('click', () => {
-    alert("جاري تجهيز باقي الواجهات والميزات للبدء!");
+    heroSection.style.display = 'none';
+    codeActivationSection.style.display = 'block';
+});
+
+// العودة للرئيسية
+backToHeroBtn.addEventListener('click', () => {
+    codeActivationSection.style.display = 'none';
+    heroSection.style.display = 'block';
+});
+
+// 7. تفعيل الكود من قِبل المستخدم
+activateCodeBtn.addEventListener('click', () => {
+    const enteredCode = userCodeInput.value.trim().toUpperCase();
+
+    if (enteredCode === "") {
+        alert("الرجاء إدخال كود الاشتراك أولاً!");
+        return;
+    }
+
+    // التحقق هل الكود موجود في قائمة الأكواد المنسوخة أو يبدأ بـ NGYM
+    if (activeCodes.includes(enteredCode) || enteredCode.startsWith("NGYM-")) {
+        alert("تم تفعيل اشتراكك بنجاح! مرحباً بك في NGym 🔥");
+        userCodeInput.value = '';
+    } else {
+        alert("كود الاشتراك غير صحيح أو منتهي الصلاحية!");
+    }
 });
