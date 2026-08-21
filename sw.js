@@ -7,18 +7,18 @@ const ASSETS_TO_CACHE = [
     './manifest.json'
 ];
 
-// 1. تثبيت الـ Service Worker وتخزين الملفات محلياً
-self.addEventListener('install', (event) => {
-    event.waitUntil(
+// تثبيت ملف الـ Service Worker وتخزين الملفات الرئيسية
+self.addEventListener('install', (e) => {
+    e.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             return cache.addAll(ASSETS_TO_CACHE);
         })
     );
 });
 
-// 2. تفعيل الملف وتنظيف الذاكرة القديمة إن وجدت
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
+// تفعيل وتحديث الكاش
+self.addEventListener('activate', (e) => {
+    e.waitUntil(
         caches.keys().then((keys) => {
             return Promise.all(
                 keys.map((key) => {
@@ -31,11 +31,11 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// 3. جلب البيانات من الذاكرة المحلية أولاً عند عدم وجود إنترنت
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request).then((cachedResponse) => {
-            return cachedResponse || fetch(event.request);
+// استرجاع البيانات أثناء تصفح التطبيق أوفلاين
+self.addEventListener('fetch', (e) => {
+    e.respondWith(
+        caches.match(e.request).then((cachedResponse) => {
+            return cachedResponse || fetch(e.request);
         })
     );
 });
