@@ -1,4 +1,4 @@
-// هنا نقوم بضبط هيلكة الطلبات وفقاً لشروط Gemini REST API الرسمية (camelCase)
+// هنا تم تحديث الموديل إلى gemini-2.5-flash وضبط استجابة السيرفر
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -9,7 +9,7 @@ export default async function handler(req, res) {
 
     if (!apiKey || !apiKey.trim()) {
         return res.status(500).json({ 
-            error: 'لم يتم العثور على مفتاح GEMINI_API_KEY في متغيراّت بيئة Vercel. يرجى إضافته من Vercel Settings -> Environment Variables.' 
+            error: 'لم يتم العثور على مفتاح GEMINI_API_KEY في متغيرات بيئة Vercel.' 
         });
     }
 
@@ -22,7 +22,6 @@ export default async function handler(req, res) {
             const parts = [];
 
             if (msg.imageBase64) {
-                // إزالة البادئة data:image/jpeg;base64, إن وجدت
                 const cleanB64 = msg.imageBase64.includes(',') 
                     ? msg.imageBase64.split(',')[1] 
                     : msg.imageBase64;
@@ -40,7 +39,6 @@ export default async function handler(req, res) {
 
             if (parts.length === 0) continue;
 
-            // دمج الرسائل المتتالية من نفس الطرف
             if (cleanContents.length > 0 && cleanContents[cleanContents.length - 1].role === role) {
                 cleanContents[cleanContents.length - 1].parts.push(...parts);
             } else {
@@ -48,7 +46,6 @@ export default async function handler(req, res) {
             }
         }
 
-        // التأكد من أن الرسالة الأولى هي من user دائماً كما تشترط API
         while (cleanContents.length > 0 && cleanContents[0].role !== 'user') {
             cleanContents.shift();
         }
@@ -59,15 +56,15 @@ export default async function handler(req, res) {
 
         const requestBody = { contents: cleanContents };
 
-        // استخدام systemInstruction بأسلوب camelCase الخاص بـ REST API
         if (systemPrompt && systemPrompt.trim()) {
             requestBody.systemInstruction = {
                 parts: [{ text: systemPrompt.trim() }]
             };
         }
 
+        // تم التحديث لاستخدام الموديل gemini-2.5-flash
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -85,7 +82,7 @@ export default async function handler(req, res) {
 
         const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!responseText) {
-            return res.status(500).json({ error: 'لم يقم النموذج بإرجاع نص. قد تكون الإجابة محجوبة لدواعي الأمان.' });
+            return res.status(500).json({ error: 'لم يقم النموذج بإرجاع نص.' });
         }
 
         return res.status(200).json({ reply: responseText });
