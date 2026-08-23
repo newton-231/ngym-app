@@ -1,4 +1,4 @@
-// هنا تم تحديث الموديل إلى gemini-2.5-flash وضبط استجابة السيرفر
+// هنا نقوم باستقبال الطلبات وتوجيهها للموديل الحديث gemini-3.6-flash
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -62,9 +62,9 @@ export default async function handler(req, res) {
             };
         }
 
-        // تم التحديث لاستخدام الموديل gemini-2.5-flash
+        // هنا تم التحديث إلى الموديل المستهدف gemini-3.6-flash
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey.trim()}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
