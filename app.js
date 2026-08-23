@@ -1,4 +1,4 @@
-// بصمة الجهاز
+// 1. بصمة الجهاز
 function getDeviceId() {
     let deviceId = localStorage.getItem('ngym_device_id');
     if (!deviceId) {
@@ -8,7 +8,7 @@ function getDeviceId() {
     return deviceId;
 }
 
-// حساب الماكروز
+// 2. حساب الماكروز والسعرات
 function calculateDynamicMacros() {
     const userData = JSON.parse(localStorage.getItem('ngym_user')) || { weight: 70, goal: 'fitness' };
     const weight = parseFloat(userData.weight) || 70;
@@ -24,7 +24,7 @@ function calculateDynamicMacros() {
     return { totalCalories: Math.round(totalCalories), protein, carbs, fat };
 }
 
-// تحديث الواجهة
+// 3. تحديث عناصر الواجهة
 function updateUIProgress(eatenCalories = 0, eatenCarbs = 0, eatenProtein = 0, eatenFat = 0) {
     const macros = calculateDynamicMacros();
     const kcalLeft = Math.max(0, macros.totalCalories - eatenCalories);
@@ -39,7 +39,7 @@ function updateUIProgress(eatenCalories = 0, eatenCarbs = 0, eatenProtein = 0, e
     if (pBar) pBar.style.width = `${Math.min(100, (eatenProtein / macros.protein) * 100)}%`;
 }
 
-// إرسال المحادثة
+// 4. إرسال المحادثة إلى السيرفر
 async function sendToAICoach(userMessage, imageBase64 = null) {
     const userData = JSON.parse(localStorage.getItem('ngym_user')) || { weight: 70, goal: 'fitness', isGym: false };
     
@@ -62,21 +62,21 @@ async function sendToAICoach(userMessage, imageBase64 = null) {
         });
 
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'فشل الاتصال');
+        if (!response.ok) {
+            throw new Error(data.error || 'حدث خطأ أثناء التواصل مع السيرفر');
+        }
 
         chatHistory.push({ role: 'model', text: data.reply });
         localStorage.setItem('ngym_chat_history', JSON.stringify(chatHistory));
         
-        return data.reply;
+        return { success: true, reply: data.reply };
     } catch (err) {
         console.error('Chat Error:', err);
-        // في حال حدوث خطأ يتم مسح السجل القديم التالف تلقائياً لتجنب تراكم الرسائل الخاطئة
-        localStorage.removeItem('ngym_chat_history');
-        return null;
+        return { success: false, error: err.message };
     }
 }
 
-// ربط الزر والإدخال
+// 5. ربط حقل الإدخال وزر الإرسال
 function setupChatListeners() {
     const inputs = document.querySelectorAll('input, textarea');
     let chatInput = Array.from(inputs).find(i => i.type === 'text' || i.tagName === 'TEXTAREA' || i.placeholder.includes('رسال'));
@@ -115,14 +115,19 @@ function setupChatListeners() {
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        const reply = await sendToAICoach(text);
+        const result = await sendToAICoach(text);
 
         if (loadingDiv) loadingDiv.remove();
 
         if (chatBox) {
             const botMsgDiv = document.createElement('div');
-            botMsgDiv.style.cssText = "background:#1e1e1e; color:#fff; padding:12px 16px; border-radius:10px; margin:8px 0; border-right:4px solid #00e676; line-height:1.6;";
-            botMsgDiv.innerText = reply || "⚠️ تعذر الحصول على رد من المدرب الذكي، تم مسح الذاكرة التالفة، جرب إرسال رسالتك مجدداً.";
+            if (result.success) {
+                botMsgDiv.style.cssText = "background:#1e1e1e; color:#fff; padding:12px 16px; border-radius:10px; margin:8px 0; border-right:4px solid #00e676; line-height:1.6;";
+                botMsgDiv.innerText = result.reply;
+            } else {
+                botMsgDiv.style.cssText = "background:#331111; color:#ff5555; padding:12px 16px; border-radius:10px; margin:8px 0; border-right:4px solid #ff5555; line-height:1.6;";
+                botMsgDiv.innerText = `⚠️ ${result.error}`;
+            }
             chatBox.appendChild(botMsgDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
