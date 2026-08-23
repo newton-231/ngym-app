@@ -1,4 +1,4 @@
-// هنا نقوم بإنشاء وتأمين بصمة الجهاز
+// 1. بصمة الجهاز لتأمين التجربة
 function getDeviceId() {
     let deviceId = localStorage.getItem('ngym_device_id');
     if (!deviceId) {
@@ -8,7 +8,7 @@ function getDeviceId() {
     return deviceId;
 }
 
-// هنا نحسب السعرات والماكروز ديناميكياً
+// 2. حساب الماكروز والسعرات
 function calculateDynamicMacros() {
     const userData = JSON.parse(localStorage.getItem('ngym_user')) || { weight: 70, goal: 'fitness' };
     const weight = parseFloat(userData.weight) || 70;
@@ -24,7 +24,7 @@ function calculateDynamicMacros() {
     return { totalCalories: Math.round(totalCalories), protein, carbs, fat };
 }
 
-// هنا نقوم بتحديث عناصر الواجهة وإخفاء شاشة التحميل
+// 3. تحديث عناصر الواجهة
 function updateUIProgress(eatenCalories = 0, eatenCarbs = 0, eatenProtein = 0, eatenFat = 0) {
     const macros = calculateDynamicMacros();
     const kcalLeft = Math.max(0, macros.totalCalories - eatenCalories);
@@ -39,7 +39,7 @@ function updateUIProgress(eatenCalories = 0, eatenCarbs = 0, eatenProtein = 0, e
     if (pBar) pBar.style.width = `${Math.min(100, (eatenProtein / macros.protein) * 100)}%`;
 }
 
-// هنا نرسل المحادثة إلى خادم /api/chat
+// 4. إرسال المحادثة إلى /api/chat
 async function sendToAICoach(userMessage, imageBase64 = null) {
     const userData = JSON.parse(localStorage.getItem('ngym_user')) || { weight: 70, goal: 'fitness', isGym: false };
     
@@ -74,51 +74,52 @@ async function sendToAICoach(userMessage, imageBase64 = null) {
     }
 }
 
-// هنا نربط زر الإرسال ومفتاح Enter بأحداث الشات تلقائياً
+// 5. ربط حقل الإدخال وزر الإرسال بشمولية مرنة
 function setupChatListeners() {
-    // التقاط العناصر الخاصة بالشات
-    const sendBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('إرسال')) ||
-                    document.querySelector('#send-btn') || 
-                    document.querySelector('.send-btn');
+    // التقاط كل العناصر المحتملة للإدخال والزر
+    const inputs = document.querySelectorAll('input, textarea');
+    let chatInput = Array.from(inputs).find(i => i.type === 'text' || i.tagName === 'TEXTAREA' || i.placeholder.includes('رسال'));
+    if (!chatInput && inputs.length > 0) chatInput = inputs[inputs.length - 1];
 
-    const chatInput = document.querySelector('input[placeholder*="رسالتك"]') || 
-                      document.querySelector('#chat-input') || 
-                      document.querySelector('input[type="text"]');
+    const buttons = document.querySelectorAll('button, div, span');
+    const sendBtn = Array.from(buttons).find(b => b.innerText && b.innerText.trim() === 'إرسال');
 
     const chatBox = document.querySelector('.chat-messages') || 
                     document.querySelector('#chat-box') || 
                     document.querySelector('.chat-body') ||
-                    chatInput?.parentElement?.parentElement;
+                    (chatInput ? chatInput.closest('div').previousElementSibling || chatInput.closest('div').parentElement : null);
 
-    if (!sendBtn || !chatInput) return;
+    if (!sendBtn || !chatInput) {
+        console.warn('NGym Debug: لم يتم العثور على زر الإرسال أو مربع النص بشكل مخصص');
+        return;
+    }
 
     async function processSend() {
         const text = chatInput.value.trim();
         if (!text) return;
 
-        // تفريغ مربع النص
         chatInput.value = '';
 
-        // عرض رسالة المستخدم فوراً داخل الشات
+        // عرض رسالة المستخدم
+        let userMsgDiv;
         if (chatBox) {
-            const userMsgDiv = document.createElement('div');
-            userMsgDiv.style.cssText = "background:#00e676; color:#000; padding:8px 12px; border-radius:10px; margin:6px 0; align-self:flex-end; font-weight:bold;";
+            userMsgDiv = document.createElement('div');
+            userMsgDiv.style.cssText = "background:#00e676; color:#000; padding:10px 14px; border-radius:10px; margin:8px 0; align-self:flex-end; font-weight:bold; width: fit-content; margin-left: auto;";
             userMsgDiv.innerText = text;
             chatBox.appendChild(userMsgDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // عرض نص الانتظار
+        // مؤشر الانتظار
         let loadingDiv;
         if (chatBox) {
             loadingDiv = document.createElement('div');
-            loadingDiv.style.cssText = "background:#222; color:#888; padding:8px 12px; border-radius:10px; margin:6px 0;";
+            loadingDiv.style.cssText = "background:#222; color:#00e676; padding:10px 14px; border-radius:10px; margin:8px 0; width: fit-content;";
             loadingDiv.innerText = "جاري الاتصال بالمدرب...";
             chatBox.appendChild(loadingDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // استدعاء API السيرفر
         const reply = await sendToAICoach(text);
 
         if (loadingDiv) loadingDiv.remove();
@@ -126,31 +127,28 @@ function setupChatListeners() {
         // عرض رد المدرب
         if (chatBox) {
             const botMsgDiv = document.createElement('div');
-            botMsgDiv.style.cssText = "background:#1e1e1e; color:#fff; padding:10px 14px; border-radius:10px; margin:6px 0; border-left:3px solid #00e676;";
-            botMsgDiv.innerText = reply || "⚠️ تعذر الحصول على رد من المدرب الذكي.";
+            botMsgDiv.style.cssText = "background:#1e1e1e; color:#fff; padding:12px 16px; border-radius:10px; margin:8px 0; border-right:4px solid #00e676; line-height:1.6;";
+            botMsgDiv.innerText = reply || "⚠️ تعذر الحصول على رد من المدرب الذكي، تحقق من المفتاح أو الاتصال.";
             chatBox.appendChild(botMsgDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
     }
 
-    // تفعيل الضغط على الزر
     sendBtn.addEventListener('click', (e) => {
         e.preventDefault();
         processSend();
     });
 
-    // تفعيل الضغط على زر Enter
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             processSend();
         }
     });
 }
 
-// تشغيل الأكواد بعد تحميل العناصر
 document.addEventListener('DOMContentLoaded', () => {
     getDeviceId();
     updateUIProgress();
-    setupChatListeners();
+    setTimeout(setupChatListeners, 500); // تأخير بسيط لضمان اكتمال بناء عناصر HTML
 });
