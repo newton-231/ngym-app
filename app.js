@@ -1,153 +1,173 @@
-// 1. بصمة الجهاز
-function getDeviceId() {
-    let deviceId = localStorage.getItem('ngym_device_id');
-    if (!deviceId) {
-        deviceId = 'DEV-' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-        localStorage.setItem('ngym_device_id', deviceId);
-    }
-    return deviceId;
-}
+// المتغيرات العامة للنظام
+let exerciseDB = [];
+let currentFilter = 'all';
+const BASE_IMAGE_URL = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+const SVG_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏋️</text></svg>";
 
-// 2. حساب الماكروز والسعرات
-function calculateDynamicMacros() {
-    const userData = JSON.parse(localStorage.getItem('ngym_user')) || { weight: 70, goal: 'fitness' };
-    const weight = parseFloat(userData.weight) || 70;
-    
-    let totalCalories = weight * 33;
-    if (userData.goal === 'bulking') totalCalories = weight * 38;
-    if (userData.goal === 'cutting') totalCalories = weight * 26;
-
-    const protein = Math.round(weight * 2);
-    const fat = Math.round(weight * 0.9);
-    const carbs = Math.round((totalCalories - (protein * 4 + fat * 9)) / 4);
-
-    return { totalCalories: Math.round(totalCalories), protein, carbs, fat };
-}
-
-// 3. تحديث عناصر الواجهة
-function updateUIProgress(eatenCalories = 0, eatenCarbs = 0, eatenProtein = 0, eatenFat = 0) {
-    const macros = calculateDynamicMacros();
-    const kcalLeft = Math.max(0, macros.totalCalories - eatenCalories);
-
-    const loadingElem = document.getElementById('loading-text');
-    if (loadingElem) loadingElem.style.display = 'none';
-
-    const kcalElem = document.getElementById('kcal-left-display');
-    if (kcalElem) kcalElem.innerText = kcalLeft;
-
-    const pBar = document.getElementById('protein-bar');
-    if (pBar) pBar.style.width = `${Math.min(100, (eatenProtein / macros.protein) * 100)}%`;
-}
-
-// 4. إرسال المحادثة إلى السيرفر
-async function sendToAICoach(userMessage, imageBase64 = null) {
-    const userData = JSON.parse(localStorage.getItem('ngym_user')) || { weight: 70, goal: 'fitness', isGym: false };
-    
-    const systemPrompt = `أنت المدرب الشخصي الذكي لتطبيق NGym. بيانات المستخدم: الوزن ${userData.weight} كجم، الهدف: ${userData.goal}. 
-    الوضع الحالي: ${userData.isGym ? 'يتدرب في الجيم ومسموح باستخدام الأوزان والحديد' : 'يتدرب في المنزل/لياقة عامة (اعتماده على وزن الجسم، السويدي، والمقاومة الخفيفة فقط دون حديد إلا إذا طلب هو ذلك)'}. 
-    جاوب باختصار، حافز، وبشكل عملي جداً.`;
-
-    let chatHistory = JSON.parse(localStorage.getItem('ngym_chat_history')) || [];
-    chatHistory.push({ role: 'user', text: userMessage, imageBase64 });
-
-    try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: chatHistory,
-                systemPrompt: systemPrompt,
-                imageBase64: imageBase64
-            })
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.error || 'حدث خطأ أثناء التواصل مع السيرفر');
-        }
-
-        chatHistory.push({ role: 'model', text: data.reply });
-        localStorage.setItem('ngym_chat_history', JSON.stringify(chatHistory));
-        
-        return { success: true, reply: data.reply };
-    } catch (err) {
-        console.error('Chat Error:', err);
-        return { success: false, error: err.message };
-    }
-}
-
-// 5. ربط حقل الإدخال وزر الإرسال
-function setupChatListeners() {
-    const inputs = document.querySelectorAll('input, textarea');
-    let chatInput = Array.from(inputs).find(i => i.type === 'text' || i.tagName === 'TEXTAREA' || i.placeholder.includes('رسال'));
-    if (!chatInput && inputs.length > 0) chatInput = inputs[inputs.length - 1];
-
-    const buttons = document.querySelectorAll('button, div, span');
-    const sendBtn = Array.from(buttons).find(b => b.innerText && b.innerText.trim() === 'إرسال');
-
-    const chatBox = document.querySelector('.chat-messages') || 
-                    document.querySelector('#chat-box') || 
-                    document.querySelector('.chat-body') ||
-                    (chatInput ? chatInput.closest('div').previousElementSibling || chatInput.closest('div').parentElement : null);
-
-    if (!sendBtn || !chatInput) return;
-
-    async function processSend() {
-        const text = chatInput.value.trim();
-        if (!text) return;
-
-        chatInput.value = '';
-
-        if (chatBox) {
-            const userMsgDiv = document.createElement('div');
-            userMsgDiv.style.cssText = "background:#00e676; color:#000; padding:10px 14px; border-radius:10px; margin:8px 0; align-self:flex-end; font-weight:bold; width: fit-content; margin-left: auto;";
-            userMsgDiv.innerText = text;
-            chatBox.appendChild(userMsgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        let loadingDiv;
-        if (chatBox) {
-            loadingDiv = document.createElement('div');
-            loadingDiv.style.cssText = "background:#222; color:#00e676; padding:10px 14px; border-radius:10px; margin:8px 0; width: fit-content;";
-            loadingDiv.innerText = "جاري الاتصال بالمدرب...";
-            chatBox.appendChild(loadingDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        const result = await sendToAICoach(text);
-
-        if (loadingDiv) loadingDiv.remove();
-
-        if (chatBox) {
-            const botMsgDiv = document.createElement('div');
-            if (result.success) {
-                botMsgDiv.style.cssText = "background:#1e1e1e; color:#fff; padding:12px 16px; border-radius:10px; margin:8px 0; border-right:4px solid #00e676; line-height:1.6;";
-                botMsgDiv.innerText = result.reply;
+// 1. جلب التمارين من المسار المحلي/السيرفر
+function fetchExercises() {
+    fetch('./data/exercises.json')
+        .then(res => {
+            if (!res.ok) throw new Error("تعذر قراءة ملف JSON");
+            return res.json();
+        })
+        .then(data => {
+            exerciseDB = data;
+            localStorage.setItem('cached_exerciseDB', JSON.stringify(data));
+            console.log(`✅ تم تحميل ${exerciseDB.length} تمرين بنجاح.`);
+            renderWorkouts();
+        })
+        .catch(err => {
+            console.warn("⚠️ جاري القراءة من ذاكرة التخزين المحلية...", err);
+            const cachedData = localStorage.getItem('cached_exerciseDB');
+            if (cachedData) {
+                exerciseDB = JSON.parse(cachedData);
+                renderWorkouts();
             } else {
-                botMsgDiv.style.cssText = "background:#331111; color:#ff5555; padding:12px 16px; border-radius:10px; margin:8px 0; border-right:4px solid #ff5555; line-height:1.6;";
-                botMsgDiv.innerText = `⚠️ ${result.error}`;
+                console.error("❌ تعذر تحميل قاعدة البيانات!");
             }
-            chatBox.appendChild(botMsgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-    }
-
-    sendBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        processSend();
-    });
-
-    chatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            processSend();
-        }
-    });
+        });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    getDeviceId();
+// 2. تصفية التمارين وعرضها
+function filterWorkouts(filterCategory, btnElement) {
+    currentFilter = filterCategory;
+    if (btnElement) {
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+    renderWorkouts();
+}
+
+function renderWorkouts() {
+    const container = document.getElementById('workout-container');
+    if (!container) return;
+
+    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    
+    let filtered = exerciseDB.filter(ex => {
+        if (currentFilter === 'home') return ex.equipment === 'body only' || ex.equipment === 'bands';
+        if (currentFilter === 'favorites') return favorites.includes(ex.id);
+        if (currentFilter === 'all') return true;
+        return ex.primaryMuscles && ex.primaryMuscles.includes(currentFilter);
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:30px; color:#888;">لا توجد تمارين تقتصر على هذا التصنيف حالياً.</div>`;
+        return;
+    }
+
+    container.innerHTML = filtered.map(ex => {
+        const isFav = favorites.includes(ex.id);
+        const imgPath = (ex.images && ex.images.length > 0) ? `${BASE_IMAGE_URL}${ex.images[0]}` : SVG_FALLBACK;
+        const primaryMuscles = ex.primaryMuscles ? ex.primaryMuscles.join('، ') : 'عام';
+
+        return `
+            <div class="workout-card" data-id="${ex.id}">
+                <img src="${imgPath}" alt="${ex.name}" class="workout-img" loading="lazy" onerror="this.src='${SVG_FALLBACK}'" />
+                <div style="flex:1;">
+                    <h4 style="margin:0 0 5px 0; color:#fff; font-size:1em;">${ex.name}</h4>
+                    <p style="margin:0; font-size:0.8em; color:#888;">🎯 ${primaryMuscles}</p>
+                </div>
+                <button class="fav-btn" onclick="toggleFavorite('${ex.id}')">${isFav ? '⭐' : '☆'}</button>
+                <button class="complete-btn" onclick="logWorkout('${ex.id}')">✔️ تم</button>
+            </div>
+        `;
+    }).join('');
+}
+
+// 3. إضافة/إزالة من المفضلة
+function toggleFavorite(exerciseId) {
+    let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    if (favorites.includes(exerciseId)) {
+        favorites = favorites.filter(id => id !== exerciseId);
+    } else {
+        favorites.push(exerciseId);
+    }
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+    renderWorkouts();
+}
+
+// 4. حساب السعرات المحروقة بدقة بـ MET وتسجيل التمرين
+function logWorkout(exerciseId) {
+    const userWeight = parseFloat(localStorage.getItem('userWeight')) || 70;
+    const durationMinutes = 15; // زمن تقديري للتمرين
+    const met = 4.5; // قيمة المجهود البدني الافتراضية
+
+    // معادلة السعرات المحروقة
+    const caloriesBurned = Math.round((met * 3.5 * userWeight * durationMinutes) / 200);
+
+    // تخزين السعرات المحروقة
+    const today = new Date().toDateString();
+    let burnedToday = parseFloat(localStorage.getItem('burned_' + today) || '0');
+    burnedToday += caloriesBurned;
+    localStorage.setItem('burned_' + today, burnedToday);
+
+    // إضافة نقاط XP وتحديث Streak
+    addXP(50);
+    updateStreak();
+
+    // تحديث الواجهات
     updateUIProgress();
-    setTimeout(setupChatListeners, 500);
+    alert(`🔥 أحرقت حوالي ${caloriesBurned} سعرة حرارية! وتم إضافة 50 XP لحسابك.`);
+}
+
+// 5. حساب الرتب والـ XP والالتزام (Gamification)
+function addXP(amount) {
+    let currentXP = parseInt(localStorage.getItem('userXP') || '0');
+    currentXP += amount;
+    localStorage.setItem('userXP', currentXP);
+    updateRankUI();
+}
+
+function updateStreak() {
+    const today = new Date().toDateString();
+    const lastDate = localStorage.getItem('lastWorkoutDate');
+    let streak = parseInt(localStorage.getItem('userStreak') || '0');
+
+    if (lastDate !== today) {
+        streak += 1;
+        localStorage.setItem('userStreak', streak);
+        localStorage.setItem('lastWorkoutDate', today);
+    }
+}
+
+function updateRankUI() {
+    const xp = parseInt(localStorage.getItem('userXP') || '0');
+    const streak = parseInt(localStorage.getItem('userStreak') || '0');
+    
+    let rank = { name: 'حجري 🪵', color: '#8d6e63', min: 0, max: 100 };
+    if (xp >= 1000) rank = { name: 'ألماسي 💎', color: '#00e5ff', min: 1000, max: 2000 };
+    else if (xp >= 600) rank = { name: 'ذهبي 🥇', color: '#ffd700', min: 600, max: 1000 };
+    else if (xp >= 300) rank = { name: 'فضي 🥈', color: '#c0c0c0', min: 300, max: 600 };
+    else if (xp >= 100) rank = { name: 'برونزي 🥉', color: '#cd7f32', min: 100, max: 300 };
+
+    document.getElementById('user-rank').innerText = rank.name;
+    document.getElementById('user-rank').style.background = rank.color;
+    document.getElementById('streak-count').innerText = streak;
+    document.getElementById('xp-count').innerText = xp;
+    document.getElementById('next-xp').innerText = rank.max;
+
+    const progressPercent = Math.min(((xp - rank.min) / (rank.max - rank.min)) * 100, 100);
+    document.getElementById('xp-progress').style.width = `${progressPercent}%`;
+}
+
+// 6. تحديث حاسبة السعرات والدائرة
+function updateUIProgress() {
+    const targetCalories = 2000;
+    const eatenCalories = parseFloat(localStorage.getItem('eaten_' + new Date().toDateString()) || '0');
+    const burnedCalories = parseFloat(localStorage.getItem('burned_' + new Date().toDateString()) || '0');
+
+    const remaining = targetCalories - eatenCalories + burnedCalories;
+
+    document.getElementById('remaining-calories').innerText = Math.round(remaining);
+    document.getElementById('eaten-cal').innerText = Math.round(eatenCalories);
+    document.getElementById('burned-cal').innerText = Math.round(burnedCalories);
+}
+
+// التشغيل الأولي عند فتح التطبيق
+document.addEventListener('DOMContentLoaded', () => {
+    fetchExercises();
+    updateRankUI();
+    updateUIProgress();
 });
