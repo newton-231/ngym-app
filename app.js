@@ -1,44 +1,14 @@
 // ============================================================
-// NGym - التطبيق الكامل (محدث بالروابط المباشرة لصور التمارين)
+// NGym - التطبيق الكامل (محدث لقراءة الصور من مجلد التقرير الرئيسي)
 // ============================================================
 
-// قائمة التمارين الافتراضية مع روابط GIF متحركة ومباشرة
+// مصفوفة التمارين الافتراضية
 const MOCK_EXERCISES = [
-    { 
-        id: '1', 
-        name: 'Sit-Up 3/4', 
-        muscle: 'abdominals', 
-        equipment: 'body only', 
-        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Sit-Up.gif' 
-    },
-    { 
-        id: '2', 
-        name: 'Hamstring 90/90', 
-        muscle: 'hamstrings', 
-        equipment: 'body only', 
-        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/90-90-Hamstring-Stretch.gif' 
-    },
-    { 
-        id: '3', 
-        name: 'Ab Crunch Machine', 
-        muscle: 'abdominals', 
-        equipment: 'machine', 
-        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Lever-Seated-Crunch.gif' 
-    },
-    { 
-        id: '4', 
-        name: 'Ab Roller', 
-        muscle: 'abdominals', 
-        equipment: 'other', 
-        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Ab-Wheel-Rollout.gif' 
-    },
-    { 
-        id: '5', 
-        name: 'Adductor Stretch', 
-        muscle: 'adductors', 
-        equipment: 'body only', 
-        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/06/Seated-Adductor-Stretch.gif' 
-    }
+    { id: '1', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only' },
+    { id: '2', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only' },
+    { id: '3', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine' },
+    { id: '4', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other' },
+    { id: '5', name: 'Adductor Stretch', muscle: 'adductors', equipment: 'body only' }
 ];
 
 let exerciseDB = [...MOCK_EXERCISES];
@@ -186,7 +156,7 @@ function updateBodygraph() {
 }
 
 // ============================================================
-// 5. نظام عرض التمارين مع صور GIF
+// 5. نظام عرض التمارين (يقرأ من مجلد "تقرير رئيسي")
 // ============================================================
 function renderWorkouts() {
     let filtered = [...exerciseDB];
@@ -207,7 +177,12 @@ function renderWorkouts() {
         return;
     }
 
-    container.innerHTML = filtered.map(ex => `
+    container.innerHTML = filtered.map(ex => {
+        // المسار لصور التمارين داخل مجلد "تقرير رئيسي"
+        const folderName = ex.name ? ex.name.replace(/ /g, '_').replace(/\//g, '_') : '';
+        const imgPath = `./تقرير رئيسي/${folderName}/0.jpg`;
+        
+        return `
         <div class="workout-card bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 mb-3">
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1 pl-2">
@@ -218,7 +193,7 @@ function renderWorkouts() {
             </div>
             
             <div class="w-full h-48 my-2 rounded-lg overflow-hidden bg-slate-900 border border-slate-700/50 flex justify-center items-center">
-                <img src="${ex.gifUrl}" 
+                <img src="${imgPath}" 
                      loading="lazy" 
                      alt="${ex.name}" 
                      class="h-full w-full object-contain" 
@@ -229,7 +204,7 @@ function renderWorkouts() {
                 <button class="start-workout-btn btn-primary text-xs py-2 px-4 w-full bg-green-500 text-slate-950 font-bold rounded-lg" data-id="${ex.id}">ابدأ التمرين</button>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 
     document.querySelectorAll('.start-workout-btn').forEach(btn => {
         btn.addEventListener('click', function() { openSetModal(this.dataset.id); });
@@ -344,6 +319,7 @@ async function sendChatMessage() {
         loadChatHistory();
     } catch (error) {
         history.push({ role: 'model', text: 'حدث خطأ في الاتصال بالسيرفر. حاول لاحقاً.' });
+        history.push({ role: 'model', text: reply });
         localStorage.setItem('chatHistory', JSON.stringify(history));
         loadChatHistory();
     }
@@ -431,7 +407,7 @@ function setupTabSwitching() {
 }
 
 // ============================================================
-// 10. الصوت الحقيقي (Speech-to-Text) ورفع الصور
+// 10. الصوت الحقيقي ورفع الصور
 // ============================================================
 function setupEventListeners() {
     document.getElementById('save-set-btn')?.addEventListener('click', saveSet);
@@ -446,7 +422,6 @@ function setupEventListeners() {
         });
     });
 
-    // رفع صورة للوجبة
     const imageInput = document.getElementById('coach-image-input');
     document.getElementById('upload-image-btn')?.addEventListener('click', () => imageInput?.click());
     
@@ -457,7 +432,6 @@ function setupEventListeners() {
         }
     });
 
-    // التسجيل الصوتي الحقيقي (Speech Recognition)
     const audioBtn = document.getElementById('record-audio-btn');
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
