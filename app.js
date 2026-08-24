@@ -1,13 +1,14 @@
 // ============================================================
-// NGym - التطبيق الكامل
+// NGym - التطبيق الكامل (محدث مع الصوت الحقيقي وصور التمارين)
 // ============================================================
 
+// تم تحديث القائمة الافتراضية بروابط صور متحركة حقيقية للتمارين
 const MOCK_EXERCISES = [
-    { id: '1', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only', gifUrl: '' },
-    { id: '2', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only', gifUrl: '' },
-    { id: '3', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine', gifUrl: '' },
-    { id: '4', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other', gifUrl: '' },
-    { id: '5', name: 'Adductor', muscle: 'adductors', equipment: 'foam roll', gifUrl: '' },
+    { id: '1', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only', gifUrl: 'https://v2.exercisedb.io/image/34aF9x5SInR49u' },
+    { id: '2', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only', gifUrl: 'https://v2.exercisedb.io/image/YyY2aAUp7N-sXk' },
+    { id: '3', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine', gifUrl: 'https://v2.exercisedb.io/image/1x6-eS1H1J4xT9' },
+    { id: '4', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other', gifUrl: 'https://v2.exercisedb.io/image/uW7Rj-oUuY9kE1' },
+    { id: '5', name: 'Adductor', muscle: 'adductors', equipment: 'foam roll', gifUrl: 'https://v2.exercisedb.io/image/0Nf3gI5U-zK1kS' }
 ];
 
 let exerciseDB = [...MOCK_EXERCISES];
@@ -16,13 +17,16 @@ let currentFilter = 'all';
 // ============================================================
 // 1. التهيئة والتحميل
 // ============================================================
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('loading-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
 
     loadUserData();
     loadChatHistory();
     loadRoutines();
+
+    // محاولة تحميل التمارين الكاملة من ملف exercises.json إذا كان موجوداً
+    await loadFullExercisesDatabase();
 
     updateUI();
     renderWorkouts();
@@ -34,8 +38,23 @@ document.addEventListener('DOMContentLoaded', function() {
     setupTabSwitching();
 });
 
+// تحميل التمارين من ملف exercises.json تلقائياً
+async function loadFullExercisesDatabase() {
+    try {
+        const response = await fetch('/data/exercises.json');
+        if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+                exerciseDB = data;
+            }
+        }
+    } catch (e) {
+        console.log('سيتم استخدام قائمة التمارين الافتراضية');
+    }
+}
+
 // ============================================================
-// 2. إدارة البيانات المحلية وتصفير اليوم الجديد تلقائياً
+// 2. إدارة البيانات المحلية وتصفير اليوم الجديد
 // ============================================================
 function loadUserData() {
     if (!localStorage.getItem('userWeight')) localStorage.setItem('userWeight', '70');
@@ -44,7 +63,6 @@ function loadUserData() {
     if (!localStorage.getItem('xp')) localStorage.setItem('xp', '0');
     if (!localStorage.getItem('rank')) localStorage.setItem('rank', 'برونزي');
 
-    // التحقق من تاريخ اليوم لتصفير الوجبات تلقائياً
     const storedDate = localStorage.getItem('todayDate');
     const today = new Date().toDateString();
     if (storedDate !== today) {
@@ -118,7 +136,7 @@ function updateMacroBar(type, current, target) {
 }
 
 // ============================================================
-// 4. خريطة العضلات (Bodygraph)
+// 4. خريطة العضلات
 // ============================================================
 function updateBodygraph() {
     const muscles = ['chest', 'core', 'shoulders-l', 'shoulders-r', 'arms-l', 'arms-r', 'legs-l', 'legs-r'];
@@ -132,7 +150,7 @@ function updateBodygraph() {
 }
 
 // ============================================================
-// 5. نظام التمارين
+// 5. نظام التمارين (معدّل لعرض الصور بنجاح)
 // ============================================================
 function renderWorkouts() {
     let filtered = [...exerciseDB];
@@ -150,17 +168,25 @@ function renderWorkouts() {
         container.innerHTML = '<div class="text-center text-slate-500 py-8 text-sm">لا توجد تمارين مطابقة</div>';
         return;
     }
+
     container.innerHTML = filtered.map(ex => `
         <div class="workout-card">
             <div class="flex justify-between items-start">
-                <div>
+                <div class="flex-1 pl-2">
                     <h4 class="font-bold text-sm text-white">${ex.name}</h4>
-                    <p class="text-xs text-slate-400 mt-0.5">${ex.muscle} · ${ex.equipment}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">${ex.muscle || ''} · ${ex.equipment || ''}</p>
                 </div>
                 <button class="favorite-btn text-lg ${isFavorite(ex.id) ? 'text-amber-400' : 'text-slate-600'}" data-id="${ex.id}">⭐</button>
             </div>
+            
+            ${ex.gifUrl ? `
+                <div class="mt-2 rounded-lg overflow-hidden bg-slate-900 border border-slate-700/50 flex justify-center items-center">
+                    <img src="${ex.gifUrl}" loading="lazy" alt="${ex.name}" class="h-36 object-contain" onerror="this.style.display='none'" />
+                </div>
+            ` : ''}
+
             <div class="flex justify-between items-center mt-3 pt-2 border-t border-slate-700/50">
-                <button class="start-workout-btn btn-primary text-xs py-1.5 px-4" data-id="${ex.id}">ابدأ التمرين</button>
+                <button class="start-workout-btn btn-primary text-xs py-1.5 px-4 w-full" data-id="${ex.id}">ابدأ التمرين</button>
             </div>
         </div>
     `).join('');
@@ -189,7 +215,7 @@ function toggleFavorite(id) {
 }
 
 // ============================================================
-// 6. تسجيل الجولات (Sets)
+// 6. تسجيل الجولات
 // ============================================================
 let currentExerciseId = null;
 
@@ -253,7 +279,7 @@ async function sendChatMessage() {
     const text = input.value.trim();
     if (!text) return;
     
-    input.value = ''; // مسح المدخلات فوراً لتعزيز التفاعل
+    input.value = '';
 
     const history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
     history.push({ role: 'user', text });
@@ -282,12 +308,11 @@ async function sendChatMessage() {
 }
 
 // ============================================================
-// 8. لوحة المشرف (Admin Panel)
+// 8. لوحة المشرف
 // ============================================================
 let adminClickCount = 0;
 
 function setupAdminPanel() {
-    // الربط المباشر بـ ID هيدر التطبيق
     document.getElementById('app-logo-header')?.addEventListener('click', function() {
         adminClickCount++;
         if (adminClickCount === 5) {
@@ -333,7 +358,7 @@ function renderCodes() {
 }
 
 // ============================================================
-// 9. التبديل والتحكم في التبويبات والزر العائم
+// 9. التبديل بين التبويبات
 // ============================================================
 function switchToTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
@@ -354,14 +379,13 @@ function setupTabSwitching() {
         });
     });
 
-    // الزر العائم للانتقال المباشر للـ Agent
     document.getElementById('floating-agent-btn').addEventListener('click', function() {
         switchToTab('coach');
     });
 }
 
 // ============================================================
-// 10. الأحداث العامة والصور والصوت
+// 10. تحويل الصوت إلى نص حقيقي + رفع الصور
 // ============================================================
 function setupEventListeners() {
     document.getElementById('save-set-btn').addEventListener('click', saveSet);
@@ -376,7 +400,7 @@ function setupEventListeners() {
         });
     });
 
-    // رفع وجبة/صورة بالكاميرا
+    // رفع وجبة/صورة
     const imageInput = document.getElementById('coach-image-input');
     document.getElementById('upload-image-btn').addEventListener('click', () => imageInput.click());
     
@@ -387,16 +411,40 @@ function setupEventListeners() {
         }
     });
 
-    // تسجيل الصوت
-    document.getElementById('record-audio-btn').addEventListener('click', function() {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                document.getElementById('chat-input').value = '🎙️ [صوت]: اقترح لي تمريناً للبطن.';
-                sendChatMessage();
-                stream.getTracks().forEach(t => t.stop());
-            }).catch(() => alert('يرجى السماح بصلاحية الميكروفون'));
-        }
-    });
+    // تسجيل الصوت وتحويله لنص حقيقي (Speech-to-Text)
+    const audioBtn = document.getElementById('record-audio-btn');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ar-SA'; // لغة التسجيل عربية
+        recognition.interimResults = false;
+
+        audioBtn.addEventListener('click', function() {
+            audioBtn.classList.add('bg-red-500'); // تغيير لون الزر للتنبيه بالتسجيل
+            recognition.start();
+        });
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('chat-input').value = transcript;
+            audioBtn.classList.remove('bg-red-500');
+            sendChatMessage(); // إرسال الرسالة تلقائياً بعد تحويل الصوت لنص
+        };
+
+        recognition.onerror = function() {
+            audioBtn.classList.remove('bg-red-500');
+            alert('حدث خطأ أثناء التقاط الصوت، يرجى المحاولة مجدداً.');
+        };
+
+        recognition.onend = function() {
+            audioBtn.classList.remove('bg-red-500');
+        };
+    } else {
+        audioBtn.addEventListener('click', function() {
+            alert('المتصفح في هاتفك لا يدعم ميزة تحويل الصوت إلى نص مباشرة.');
+        });
+    }
 }
 
 function loadRoutines() {
