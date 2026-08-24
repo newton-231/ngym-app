@@ -9,19 +9,18 @@
         body { background-color: #121212; color: #ffffff; padding: 15px; }
         
         /* شريط البروفايل والرتب */
-        .profile-card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #2a2a2a; }
-        .rank-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9em; margin-top: 5px; }
-        .progress-bar-bg { background: #333; height: 8px; border-radius: 4px; margin-top: 8px; overflow: hidden; }
-        .progress-bar-fill { background: #00e676; height: 100%; width: 0%; transition: width 0.3s ease; }
+        .profile-card { background: #1e1e1e; padding: 15px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #2a2a2a; }
+        .rank-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.85em; margin-top: 5px; }
+        .progress-bar-bg { background: #2a2a2a; height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+        .progress-bar-fill { background: #00e676; height: 100%; width: 0%; transition: width 0.4s ease; }
         
-        /* الدائرة الرئيسية للسعرات */
-        .dashboard-circle { text-align: center; margin: 20px 0; background: #1e1e1e; padding: 20px; border-radius: 16px; border: 1px solid #2a2a2a; }
-        .circle-val { font-size: 2.2em; font-weight: bold; color: #00e676; }
+        /* بطاقة السعرات والماكروز */
+        .dashboard-card { background: #1e1e1e; border-radius: 20px; padding: 20px; margin-bottom: 20px; border: 1px solid #2a2a2a; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
         
         /* أشرطة التصفية */
         .filter-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; }
-        .filter-btn { background: #252525; color: #fff; border: 1px solid #333; padding: 8px 14px; border-radius: 20px; cursor: pointer; white-space: nowrap; }
-        .filter-btn.active { background: #00e676; color: #000; font-weight: bold; }
+        .filter-btn { background: #252525; color: #fff; border: 1px solid #333; padding: 8px 14px; border-radius: 20px; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+        .filter-btn.active { background: #00e676; color: #000; font-weight: bold; border-color: #00e676; }
         
         /* بطاقات التمارين */
         .workout-card { background: #1a1a1a; padding: 15px; border-radius: 12px; margin-bottom: 15px; border-right: 4px solid #00e676; display: flex; gap: 15px; align-items: center; }
@@ -36,28 +35,87 @@
     <div class="profile-card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <h3>أهلاً بك يا بطل 🦾</h3>
+                <h3 style="font-size: 1.1em;">أهلاً بك يا بطل 🦾</h3>
                 <span id="user-rank" class="rank-badge" style="background:#555; color:#fff;">حجري 🪵</span>
             </div>
             <div style="text-align: left;">
-                <span style="font-size: 0.9em; color: #aaa;">الالتزام (Streak)</span>
-                <div style="font-size: 1.2em; font-weight: bold; color: #ff9800;">🔥 <span id="streak-count">0</span> أيام</div>
+                <span style="font-size: 0.8em; color: #aaa;">الالتزام (Streak)</span>
+                <div style="font-size: 1.1em; font-weight: bold; color: #ff9800;">🔥 <span id="streak-count">0</span> أيام</div>
             </div>
         </div>
         <div class="progress-bar-bg">
             <div id="xp-progress" class="progress-bar-fill"></div>
         </div>
-        <div style="font-size: 0.8em; color: #aaa; margin-top: 5px; text-align: left;">
+        <div style="font-size: 0.75em; color: #aaa; margin-top: 5px; text-align: left;">
             <span id="xp-count">0</span> / <span id="next-xp">100</span> XP
         </div>
     </div>
 
-    <!-- الدائرة الرئيسية لحساب السعرات -->
-    <div class="dashboard-circle">
-        <div style="color: #aaa; font-size: 0.9em; margin-bottom: 5px;">المتبقي اليومي من السعرات</div>
-        <div id="remaining-calories" class="circle-val">2000</div>
-        <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
-            مستهدف: 2000 | مأكول: <span id="eaten-cal" style="color:#fff;">0</span> | محروق: <span id="burned-cal" style="color:#00e676;">0</span>
+    <!-- لوحة السعرات والماكروز التفاعلية -->
+    <div class="dashboard-card">
+        
+        <!-- الدائرة التفاعلية SVG -->
+        <div style="position:relative; width:180px; height:180px; margin:0 auto 15px auto;">
+            <svg width="180" height="180" viewBox="0 0 120 120" style="transform: rotate(-90deg);">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#2a2a2a" stroke-width="10" />
+                <circle id="cal-ring-fill" cx="60" cy="60" r="50" fill="none" stroke="#00e676" stroke-width="10" 
+                        stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round" 
+                        style="transition: stroke-dashoffset 0.8s ease;" />
+            </svg>
+            
+            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center;">
+                <span id="remaining-calories" style="font-size:2em; font-weight:800; color:#fff; display:block; line-height:1;">2000</span>
+                <span style="font-size:0.75em; color:#888; text-transform:uppercase; letter-spacing:1px;">متبقي kcal</span>
+            </div>
+        </div>
+
+        <!-- أرقام السعرات -->
+        <div style="display:flex; justify-content:space-around; text-align:center; padding-bottom:15px; border-bottom:1px solid #2a2a2a; margin-bottom:15px;">
+            <div>
+                <span style="font-size:0.8em; color:#888;">المستهدف</span>
+                <h4 id="target-cal" style="color:#fff; margin-top:2px;">2000</h4>
+            </div>
+            <div>
+                <span style="font-size:0.8em; color:#888;">المأكول</span>
+                <h4 id="eaten-cal" style="color:#ffb74d; margin-top:2px;">0</h4>
+            </div>
+            <div>
+                <span style="font-size:0.8em; color:#888;">المحروق</span>
+                <h4 id="burned-cal" style="color:#00e676; margin-top:2px;">0</h4>
+            </div>
+        </div>
+
+        <!-- أشرطة الماكروز -->
+        <div class="macros-container" style="display:flex; flex-direction:column; gap:10px;">
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:4px;">
+                    <span style="color:#ff5252; font-weight:bold;">🥩 بروتين</span>
+                    <span style="color:#aaa;"><span id="protein-curr">0</span> / <span id="protein-target">150</span>g</span>
+                </div>
+                <div style="background:#2a2a2a; height:6px; border-radius:3px; overflow:hidden;">
+                    <div id="protein-bar" style="background:#ff5252; width:0%; height:100%; transition:width 0.5s ease;"></div>
+                </div>
+            </div>
+
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:4px;">
+                    <span style="color:#ffb74d; font-weight:bold;">🍞 كربوهيدرات</span>
+                    <span style="color:#aaa;"><span id="carbs-curr">0</span> / <span id="carbs-target">200</span>g</span>
+                </div>
+                <div style="background:#2a2a2a; height:6px; border-radius:3px; overflow:hidden;">
+                    <div id="carbs-bar" style="background:#ffb74d; width:0%; height:100%; transition:width 0.5s ease;"></div>
+                </div>
+            </div>
+
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:4px;">
+                    <span style="color:#4fc3f7; font-weight:bold;">🥑 دهون صحية</span>
+                    <span style="color:#aaa;"><span id="fat-curr">0</span> / <span id="fat-target">60</span>g</span>
+                </div>
+                <div style="background:#2a2a2a; height:6px; border-radius:3px; overflow:hidden;">
+                    <div id="fat-bar" style="background:#4fc3f7; width:0%; height:100%; transition:width 0.5s ease;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -68,7 +126,7 @@
             <button class="filter-btn" onclick="filterWorkouts('home', this)">🏠 المنزل</button>
             <button class="filter-btn" onclick="filterWorkouts('favorites', this)">⭐ المفضلة</button>
             <button class="filter-btn" onclick="filterWorkouts('chest', this)">💪 صدر</button>
-            <button class="filter-btn" onclick="filterWorkouts('legs', this)">🦵 أرجل</button>
+            <button class="filter-btn" onclick="filterWorkouts('quadriceps', this)">🦵 أرجل</button>
             <button class="filter-btn" onclick="filterWorkouts('abdominals', this)">🔥 بطن</button>
         </div>
 
