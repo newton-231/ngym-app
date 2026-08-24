@@ -1,14 +1,14 @@
 // ============================================================
-// NGym - التطبيق الكامل (محدث لقراءة المسارات المباشرة من main)
+// NGym - التطبيق الكامل (محدث لاستدعاء صور الـ GIF عبر CDN مباشر)
 // ============================================================
 
 // مصفوفة التمارين الافتراضية
 const MOCK_EXERCISES = [
-    { id: '1', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only' },
-    { id: '2', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only' },
-    { id: '3', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine' },
-    { id: '4', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other' },
-    { id: '5', name: 'Adductor Stretch', muscle: 'adductors', equipment: 'body only' }
+    { id: '0001', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only' },
+    { id: '0002', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only' },
+    { id: '0003', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine' },
+    { id: '0004', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other' },
+    { id: '0005', name: 'Adductor Stretch', muscle: 'adductors', equipment: 'body only' }
 ];
 
 let exerciseDB = [...MOCK_EXERCISES];
@@ -156,7 +156,7 @@ function updateBodygraph() {
 }
 
 // ============================================================
-// 5. نظام عرض التمارين (مصحح ليقرأ من main مباشرة)
+// 5. نظام عرض التمارين (مربوط بروابط CDN مباشرة لصور GIF)
 // ============================================================
 function renderWorkouts() {
     let filtered = [...exerciseDB];
@@ -178,8 +178,11 @@ function renderWorkouts() {
     }
 
     container.innerHTML = filtered.map(ex => {
-        const folderName = ex.name ? ex.name.replace(/ /g, '_').replace(/\//g, '_') : '';
-        const imgPath = ex.gifUrl || `./main/${folderName}/0.jpg`;
+        // تجهيز معرف التمرير بالشكل 0001 ليوافق روابط الـ CDN المجانية
+        const formattedId = String(ex.id).padStart(4, '0');
+        
+        // استدعاء الصورة عبر CDN مباشر مفتوح المصدر بدون رفع ملفات محلياً
+        const imgPath = ex.gifUrl || `https://raw.githubusercontent.com/yuhasbs/exercise-assets/main/gifs/${formattedId}.gif`;
         
         return `
         <div class="workout-card bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 mb-3">
@@ -196,7 +199,7 @@ function renderWorkouts() {
                      loading="lazy" 
                      alt="${ex.name}" 
                      class="h-full w-full object-contain" 
-                     onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'text-xs text-slate-500 flex flex-col items-center justify-center h-full gap-1\'><span>🏋️</span><span>${ex.name}</span></div>';" />
+                     onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/yuhasbs/exercise-assets/main/gifs/0001.gif';" />
             </div>
 
             <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-700/50">
