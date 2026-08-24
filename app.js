@@ -1,8 +1,7 @@
 // ============================================================
-// NGym - التطبيق الكامل (معالجة مشكلة عرض التمارين والصور)
+// NGym - التطبيق الكامل (حل مشكلة الصور وقراءة التمارين)
 // ============================================================
 
-// مصفوفة التمارين المضمنة لضمان الظهور الفوري
 const MOCK_EXERCISES = [
     { id: '0001', name: '3/4 Sit-Up', muscle: 'abdominals', equipment: 'body weight' },
     { id: '0002', name: '45° Leg Press', muscle: 'quadriceps', equipment: 'leverage machine' },
@@ -18,9 +17,6 @@ const MOCK_EXERCISES = [
 let exerciseDB = [...MOCK_EXERCISES];
 let currentFilter = 'all';
 
-// ============================================================
-// 1. التهيئة والتحميل عند فتح التطبيق
-// ============================================================
 document.addEventListener('DOMContentLoaded', async function() {
     const loadingScreen = document.getElementById('loading-screen');
     const appScreen = document.getElementById('app');
@@ -32,7 +28,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     loadChatHistory();
     loadRoutines();
 
-    // محاولة تحميل ملف البيانات الإضافي إن وجد
     await loadFullExercisesDatabase();
 
     updateUI();
@@ -55,13 +50,10 @@ async function loadFullExercisesDatabase() {
             }
         }
     } catch (e) {
-        console.log('سيتم استخدام قائمة التمارين المضمنة.');
+        console.log('استخدام القائمة المضمنة');
     }
 }
 
-// ============================================================
-// 2. إدارة البيانات المحلية
-// ============================================================
 function loadUserData() {
     if (!localStorage.getItem('userWeight')) localStorage.setItem('userWeight', '70');
     if (!localStorage.getItem('userGoal')) localStorage.setItem('userGoal', 'fitness');
@@ -91,9 +83,6 @@ function getMacrosTarget() {
     return { calories: Math.round(cal), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) };
 }
 
-// ============================================================
-// 3. تحديث الواجهة الرئيسية
-// ============================================================
 function updateUI() {
     const target = getMacrosTarget();
     const eaten = {
@@ -148,9 +137,6 @@ function updateMacroBar(type, current, target) {
     }
 }
 
-// ============================================================
-// 4. خريطة العضلات
-// ============================================================
 function updateBodygraph() {
     const muscles = ['chest', 'core', 'shoulders-l', 'shoulders-r', 'arms-l', 'arms-r', 'legs-l', 'legs-r'];
     const burned = parseInt(localStorage.getItem('burnedCalories')) || 0;
@@ -163,7 +149,7 @@ function updateBodygraph() {
 }
 
 // ============================================================
-// 5. نظام عرض التمارين (مصحح بالكامل مع CDN مباشر للصور)
+// دالة عرض التمارين وتوليد الصور من السيرفر المباشر
 // ============================================================
 function renderWorkouts() {
     let filtered = [...exerciseDB];
@@ -188,9 +174,10 @@ function renderWorkouts() {
     container.innerHTML = filtered.map(ex => {
         const formattedId = String(ex.id).padStart(4, '0');
         
-        // رابط GIF مباشر من سيرفر jsDelivr المفتوح
-        const imgPath = ex.gifUrl || `https://cdn.jsdelivr.net/gh/yuhasbs/exercise-assets@main/gifs/${formattedId}.gif`;
-        
+        // رابط مباشر مضمون يقرأ صور GIF مفتوحة المصدر مباشرة
+        const imgPath = ex.gifUrl || `https://v2.exercisedb.io/image/${formattedId}`;
+        const fallbackImg = `https://raw.githubusercontent.com/yuhasbs/exercise-assets/main/gifs/${formattedId}.gif`;
+
         return `
         <div class="workout-card bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 mb-3">
             <div class="flex justify-between items-start mb-2">
@@ -206,7 +193,7 @@ function renderWorkouts() {
                      loading="lazy" 
                      alt="${ex.name}" 
                      class="h-full w-full object-contain" 
-                     onerror="this.onerror=null; this.src='https://fitvids.s3.amazonaws.com/gifs/0001.gif';" />
+                     onerror="this.onerror=null; this.src='${fallbackImg}';" />
             </div>
 
             <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-700/50">
@@ -239,9 +226,6 @@ function toggleFavorite(id) {
     localStorage.setItem('favorites', JSON.stringify(favs));
 }
 
-// ============================================================
-// 6. نافذة تسجيل الجولات
-// ============================================================
 let currentExerciseId = null;
 
 function openSetModal(exerciseId) {
@@ -274,9 +258,6 @@ function saveSet() {
     updateBodygraph();
 }
 
-// ============================================================
-// 7. المدرب الذكي (Chat)
-// ============================================================
 function setupChat() {
     document.getElementById('send-chat-btn')?.addEventListener('click', sendChatMessage);
     document.getElementById('chat-input')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(); });
@@ -334,9 +315,6 @@ async function sendChatMessage() {
     }
 }
 
-// ============================================================
-// 8. لوحة المشرف المخفية
-// ============================================================
 let adminClickCount = 0;
 
 function setupAdminPanel() {
@@ -387,9 +365,6 @@ function renderCodes() {
     }
 }
 
-// ============================================================
-// 9. التبديل بين التبويبات والزر العائم
-// ============================================================
 function switchToTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
     const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
@@ -415,9 +390,6 @@ function setupTabSwitching() {
     });
 }
 
-// ============================================================
-// 10. الصوت ورفع الصور
-// ============================================================
 function setupEventListeners() {
     document.getElementById('save-set-btn')?.addEventListener('click', saveSet);
     document.getElementById('close-set-modal')?.addEventListener('click', closeSetModal);
