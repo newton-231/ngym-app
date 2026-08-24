@@ -1,5 +1,5 @@
 // ============================================================
-// NGym - التطبيق الكامل (محدث لقراءة الصور من مجلد التقرير الرئيسي)
+// NGym - التطبيق الكامل (محدث لقراءة المسارات المباشرة من main)
 // ============================================================
 
 // مصفوفة التمارين الافتراضية
@@ -156,7 +156,7 @@ function updateBodygraph() {
 }
 
 // ============================================================
-// 5. نظام عرض التمارين (يقرأ من مجلد "تقرير رئيسي")
+// 5. نظام عرض التمارين (مصحح ليقرأ من main مباشرة)
 // ============================================================
 function renderWorkouts() {
     let filtered = [...exerciseDB];
@@ -178,9 +178,8 @@ function renderWorkouts() {
     }
 
     container.innerHTML = filtered.map(ex => {
-        // المسار لصور التمارين داخل مجلد "تقرير رئيسي"
         const folderName = ex.name ? ex.name.replace(/ /g, '_').replace(/\//g, '_') : '';
-        const imgPath = `./تقرير رئيسي/${folderName}/0.jpg`;
+        const imgPath = ex.gifUrl || `./main/${folderName}/0.jpg`;
         
         return `
         <div class="workout-card bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 mb-3">
@@ -197,7 +196,7 @@ function renderWorkouts() {
                      loading="lazy" 
                      alt="${ex.name}" 
                      class="h-full w-full object-contain" 
-                     onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'text-xs text-slate-500 flex items-center justify-center h-full\'>🏋️ صورة التمرين غير متوفرة</div>';" />
+                     onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'text-xs text-slate-500 flex flex-col items-center justify-center h-full gap-1\'><span>🏋️</span><span>${ex.name}</span></div>';" />
             </div>
 
             <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-700/50">
@@ -319,7 +318,6 @@ async function sendChatMessage() {
         loadChatHistory();
     } catch (error) {
         history.push({ role: 'model', text: 'حدث خطأ في الاتصال بالسيرفر. حاول لاحقاً.' });
-        history.push({ role: 'model', text: reply });
         localStorage.setItem('chatHistory', JSON.stringify(history));
         loadChatHistory();
     }
