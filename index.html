@@ -1,302 +1,180 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>NGym - تطبيق اللياقة البدنية</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { green: '#22c55e', dark: '#0f172a', card: '#1e293b' }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: system-ui, -apple-system, sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        .workout-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 1rem;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-        }
-        .btn-primary {
-            background-color: #22c55e;
-            color: #000;
-            font-weight: bold;
-            border-radius: 0.5rem;
-            transition: opacity 0.2s;
-        }
-        .btn-primary:active { opacity: 0.8; }
-        .modal-overlay {
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(4px);
-        }
         .hidden-tab { display: none !important; }
         .active-tab { color: #22c55e; border-top: 2px solid #22c55e; }
-        .filter-tab.active { background-color: #22c55e; color: #000; }
+        .filter-tab.active { background-color: #22c55e; color: #0f172a; font-weight: bold; }
     </style>
 </head>
-<body class="pb-20">
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen pb-20 select-none">
 
     <!-- شاشة التحميل -->
-    <div id="loading-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
-        <div class="text-center">
-            <h1 class="text-3xl font-bold text-green-500 mb-2">NGYM</h1>
-            <p class="text-slate-400 text-sm">جاري تحميل البيانات...</p>
+    <div id="loading-screen" class="fixed inset-0 bg-slate-950 flex flex-col justify-center items-center z-50">
+        <div class="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h1 class="text-xl font-bold tracking-wider text-green-500">NGYM PRO</h1>
+    </div>
+
+    <!-- نافذة إدخال بيانات المستخدم الجديد (Onboarding Modal) -->
+    <div id="onboarding-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md flex justify-center items-center z-50 p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-right">
+            <h2 class="text-xl font-bold text-green-400 mb-2 text-center">مرحباً بك في NGym! 🏋️‍♂️</h2>
+            <p class="text-xs text-slate-400 mb-6 text-center">يرجى تحديد بياناتك لنتمكن من تخصيص خطتك السعرية والرياضية:</p>
+            
+            <form id="onboarding-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">الوزن الحالي (كجم):</label>
+                    <input type="number" id="init-weight" min="30" max="250" value="70" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">الهدف الرئيسي:</label>
+                    <select id="init-goal" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500">
+                        <option value="bulking">تضخيم وبناء عضلات (Bulking)</option>
+                        <option value="cutting">تنشيف وحرق دهون (Cutting)</option>
+                        <option value="fitness">لياقة بدنية وتحسين صحة (Fitness)</option>
+                        <option value="women_weight_loss">إنزال الوزن للنساء (Women Weight Loss)</option>
+                        <option value="calorie_deficit">إنزال الوزن بعجز سعرات بدون تمارين (Calorie Deficit)</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-green-500 text-slate-950 font-bold py-3 rounded-xl text-sm hover:bg-green-400 transition-colors mt-4">
+                    حفظ وابدأ الآن 🚀
+                </button>
+            </form>
         </div>
     </div>
 
     <!-- التطبيق الرئيسي -->
-    <div id="app" style="display: none;">
-        <!-- الهيدر -->
-        <header class="p-4 bg-slate-800/80 backdrop-blur border-b border-slate-700 sticky top-0 z-30 flex justify-between items-center">
-            <h1 id="app-logo-header" class="text-xl font-bold text-green-500 cursor-pointer">NGYM ⚡</h1>
-            <div class="flex items-center gap-2">
-                <span id="rank-badge" class="bg-amber-500/20 text-amber-400 text-xs px-2 py-1 rounded-full font-bold">برونزي</span>
-                <span class="text-xs text-slate-300">🔥 <span id="streak-days">0</span> أيام</span>
+    <div id="app" class="hidden max-w-md mx-auto relative">
+
+        <!-- الهيدر العلوي -->
+        <header class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center sticky top-0 z-30">
+            <div id="app-logo-header" class="cursor-pointer">
+                <h1 class="text-lg font-black text-green-500 tracking-wider">NGYM</h1>
+            </div>
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="bg-slate-800 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                    🔥 <span id="streak-days">0</span> يوم
+                </div>
+                <div class="bg-slate-800 px-3 py-1 rounded-full text-xs font-semibold text-amber-400">
+                    🏆 <span id="rank-badge">مبتدئ</span>
+                </div>
             </div>
         </header>
 
-        <!-- المحتوى الرئيسي حسب التبويب -->
-        <main class="p-4 max-w-md mx-auto">
+        <!-- المحتوى التفاعلي (التبويبات) -->
+        <main class="p-4">
             
-            <!-- تبويب الرئيسية -->
-            <section id="tab-home" class="tab-panel">
-                <!-- دائرة السعرات -->
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-center relative mb-6">
-                    <svg class="w-48 h-48 mx-auto transform -rotate-90" viewBox="0 0 120 120">
-                        <circle cx="60" cy="60" r="54" stroke="#334155" stroke-width="8" fill="none" />
-                        <circle id="calories-ring" cx="60" cy="60" r="54" stroke="#22c55e" stroke-width="8" fill="none"
-                                stroke-dasharray="339.292" stroke-dashoffset="339.292" stroke-linecap="round" />
-                    </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span id="calories-left" class="text-3xl font-extrabold">0</span>
-                        <span class="text-xs text-slate-400">سعرة متبقية</span>
-                    </div>
-                    <div class="flex justify-between text-xs text-slate-400 mt-4 pt-4 border-t border-slate-700/50">
-                        <div>المستهدف: <span id="target-cal" class="text-white">0</span></div>
-                        <div>المتداول: <span id="eaten-cal" class="text-white">0</span></div>
-                        <div>المحروق: <span id="burned-cal" class="text-white">0</span></div>
+            <!-- 1. تبويب الرئيسية -->
+            <section id="tab-dashboard" class="tab-panel">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+                    <h3 class="text-xs font-bold text-slate-400 mb-3">السعرات اليومية MOCK</h3>
+                    <div class="flex justify-around items-center">
+                        <div class="text-center">
+                            <p class="text-xl font-extrabold text-white" id="calories-left">0</p>
+                            <p class="text-[10px] text-slate-400">المتبقي</p>
+                        </div>
+                        <div class="relative w-24 h-24 flex justify-center items-center">
+                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="54" stroke="#1e293b" stroke-width="8" fill="transparent" />
+                                <circle id="calories-ring" cx="60" cy="60" r="54" stroke="#22c55e" stroke-width="8" fill="transparent" stroke-linecap="round" stroke-dasharray="339.292" stroke-dashoffset="339.292" />
+                            </svg>
+                            <span class="absolute text-xs font-bold" id="eaten-cal">0</span>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-xl font-extrabold text-white" id="target-cal">0</p>
+                            <p class="text-[10px] text-slate-400">الهدف</p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- أشرطة العناصر الغذائية (Macros) -->
-                <div class="space-y-3 bg-slate-800 p-4 rounded-2xl border border-slate-700 mb-6">
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span>بروتين</span>
-                            <span id="protein-values">0 / 0g</span>
-                        </div>
-                        <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-                            <div id="protein-bar" class="bg-red-500 h-full w-0 transition-all"></div>
+                <!-- الماكروز -->
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-center">
+                        <p class="text-[10px] text-slate-400">بروتين</p>
+                        <p id="protein-values" class="text-xs font-bold text-green-400">0/0g</p>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1 overflow-hidden">
+                            <div id="protein-bar" class="bg-green-500 h-full w-0 transition-all"></div>
                         </div>
                     </div>
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span>كاربوهيدرات</span>
-                            <span id="carbs-values">0 / 0g</span>
-                        </div>
-                        <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                    <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-center">
+                        <p class="text-[10px] text-slate-400">كارب</p>
+                        <p id="carbs-values" class="text-xs font-bold text-amber-400">0/0g</p>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1 overflow-hidden">
                             <div id="carbs-bar" class="bg-amber-500 h-full w-0 transition-all"></div>
                         </div>
                     </div>
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span>دهون</span>
-                            <span id="fats-values">0 / 0g</span>
-                        </div>
-                        <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                    <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-center">
+                        <p class="text-[10px] text-slate-400">دهون</p>
+                        <p id="fats-values" class="text-xs font-bold text-blue-400">0/0g</p>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1 overflow-hidden">
                             <div id="fats-bar" class="bg-blue-500 h-full w-0 transition-all"></div>
                         </div>
                     </div>
                 </div>
-
-                <!-- XP والتقدم -->
-                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 mb-6">
-                    <div class="flex justify-between text-xs mb-2">
-                        <span>النقاط (XP): <span id="xp-current" class="text-green-400 font-bold">0</span></span>
-                        <span>الرتبة القادمة: <span id="next-rank" class="text-amber-400 font-bold">ذهبي</span></span>
-                    </div>
-                    <div class="w-full bg-slate-700 h-3 rounded-full overflow-hidden">
-                        <div id="xp-bar" class="bg-green-500 h-full w-0 transition-all"></div>
-                    </div>
-                </div>
-
-                <!-- خريطة العضلات SVG -->
-                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center">
-                    <h3 class="text-sm font-bold mb-3 text-slate-300">خريطة نشاط العضلات اليوم</h3>
-                    <svg class="w-32 h-48 mx-auto" viewBox="0 0 100 150">
-                        <!-- الصدر -->
-                        <path id="muscle-chest" d="M35 30 Q50 35 65 30 L60 45 Q50 50 40 45 Z" fill="#2a2a2a" />
-                        <!-- البطن -->
-                        <path id="muscle-core" d="M40 48 Q50 50 60 48 L58 75 Q50 78 42 75 Z" fill="#2a2a2a" />
-                        <!-- الكتف الأيمن والأيسر -->
-                        <circle id="muscle-shoulders-l" cx="28" cy="30" r="7" fill="#2a2a2a" />
-                        <circle id="muscle-shoulders-r" cx="72" cy="30" r="7" fill="#2a2a2a" />
-                        <!-- الذراعين -->
-                        <rect id="muscle-arms-l" x="20" y="38" width="8" height="25" rx="3" fill="#2a2a2a" />
-                        <rect id="muscle-arms-r" x="72" y="38" width="8" height="25" rx="3" fill="#2a2a2a" />
-                        <!-- الأرجل -->
-                        <path id="muscle-legs-l" d="M38 80 L48 80 L45 130 L35 130 Z" fill="#2a2a2a" />
-                        <path id="muscle-legs-r" d="M52 80 L62 80 L65 130 L55 130 Z" fill="#2a2a2a" />
-                    </svg>
-                </div>
             </section>
 
-            <!-- تبويب التمارين -->
+            <!-- 2. تبويب التمارين -->
             <section id="tab-workouts" class="tab-panel hidden-tab">
-                <div class="flex gap-2 overflow-x-auto pb-3 mb-3 text-xs no-scrollbar">
-                    <button class="filter-tab active px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 whitespace-nowrap" data-filter="all">الكل</button>
-                    <button class="filter-tab px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 whitespace-nowrap" data-filter="favorites">⭐ المفضلة</button>
-                    <button class="filter-tab px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 whitespace-nowrap" data-filter="home">🏠 منزلية</button>
-                    <button class="filter-tab px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 whitespace-nowrap" data-filter="abdominals">بطن</button>
-                    <button class="filter-tab px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 whitespace-nowrap" data-filter="hamstrings">فخذ</button>
+                <div class="flex gap-2 overflow-x-auto pb-2 mb-3 text-xs scrollbar-none">
+                    <button class="filter-tab active px-3 py-1.5 rounded-lg bg-slate-800 whitespace-nowrap" data-filter="all">الكل</button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg bg-slate-800 whitespace-nowrap" data-filter="chest">صدر</button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg bg-slate-800 whitespace-nowrap" data-filter="abdominals">بطن</button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg bg-slate-800 whitespace-nowrap" data-filter="biceps">بايسبس</button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg bg-slate-800 whitespace-nowrap" data-filter="home">منزلي</button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg bg-slate-800 whitespace-nowrap" data-filter="favorites">المفضلة ⭐</button>
                 </div>
 
-                <div id="workout-list">
-                    <!-- يتم توليد التمارين هنا dynamically -->
-                </div>
+                <div id="workout-list"></div>
             </section>
 
-            <!-- تبويب الروتينات -->
-            <section id="tab-routines" class="tab-panel hidden-tab">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-bold">روتيناتي المخصصة</h2>
-                    <button id="create-routine-btn" class="btn-primary text-xs py-1.5 px-3">+ روتين جديد</button>
-                </div>
-                <div id="routines-list" class="space-y-2 text-slate-400 text-sm">
-                    <!-- قائمة الروتينات -->
-                </div>
-            </section>
-
-            <!-- تبويب المدرب الذكي (Chat) -->
+            <!-- 3. تبويب المدرب الذكي -->
             <section id="tab-coach" class="tab-panel hidden-tab">
-                <div class="bg-slate-800 border border-slate-700 rounded-2xl h-[calc(100vh-180px)] flex flex-col">
-                    <div class="p-3 border-b border-slate-700 text-xs font-bold text-green-400 flex justify-between items-center">
-                        <span>🤖 المدرب الشخصي الذكي</span>
-                        <span class="text-slate-400 text-[10px]">متصل الآن</span>
-                    </div>
-                    
-                    <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 text-sm">
-                        <!-- الرسائل تفاعلية هنا -->
-                    </div>
-
-                    <div class="p-3 border-t border-slate-700 flex items-center gap-2">
-                        <button id="upload-image-btn" class="bg-slate-700 p-2 rounded-xl text-lg hover:bg-slate-600" title="رفع صورة وجبة">📷</button>
-                        <button id="record-audio-btn" class="bg-slate-700 p-2 rounded-xl text-lg hover:bg-slate-600" title="تسجيل صوتي">🎙️</button>
-                        <input type="text" id="chat-input" placeholder="اسأل المدرب..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500" />
-                        <button id="send-chat-btn" class="bg-green-500 text-black font-bold p-2 px-3 rounded-xl">إرسال</button>
-                    </div>
+                <div id="chat-messages" class="h-[65vh] overflow-y-auto p-2 bg-slate-900 rounded-xl border border-slate-800 mb-3 space-y-2"></div>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="chat-input" placeholder="اسأل المدرب الذكي..." class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                    <button id="send-chat-btn" class="bg-green-500 text-slate-950 px-3 py-2 rounded-xl text-xs font-bold">إرسال</button>
                 </div>
             </section>
 
         </main>
 
-        <!-- زر Agent العائم للوصول السريع إلى المدرب من أي شاشة -->
-        <button id="floating-agent-btn" class="fixed bottom-20 left-4 z-40 bg-green-500 text-slate-950 p-3.5 rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center font-bold text-xl active:scale-95 transition-transform">
-            🤖
+        <!-- زر العائم للمدرب -->
+        <button id="floating-agent-btn" class="fixed bottom-16 left-4 bg-green-500 text-slate-950 p-3 rounded-full shadow-lg z-40 font-bold text-xs">
+            🤖 المدرب
         </button>
 
         <!-- الشريط السفلي للتنقل -->
-        <nav class="fixed bottom-0 inset-x-0 bg-slate-800/90 backdrop-blur border-t border-slate-700 flex justify-around p-2 text-xs text-slate-400 z-30">
-            <button class="tab-btn active-tab flex flex-col items-center py-1" data-tab="home">
-                <span>📊</span>
-                <span>الرئيسية</span>
+        <nav class="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 max-w-md mx-auto flex justify-around py-2 z-40 text-xs">
+            <button class="tab-btn active-tab flex flex-col items-center gap-1" data-tab="dashboard">
+                <span>🏠</span><span>الرئيسية</span>
             </button>
-            <button class="tab-btn flex flex-col items-center py-1" data-tab="workouts">
-                <span>🏋️</span>
-                <span>التمارين</span>
+            <button class="tab-btn flex flex-col items-center gap-1 text-slate-400" data-tab="workouts">
+                <span>🏋️‍♂️</span><span>التمارين</span>
             </button>
-
-            <button class="tab-btn flex flex-col items-center py-1" data-tab="routines">
-                <span>📋</span>
-                <span>الروتينات</span>
-            </button>
-            <button class="tab-btn flex flex-col items-center py-1" data-tab="coach">
-                <span>🤖</span>
-                <span>المدرب</span>
+            <button class="tab-btn flex flex-col items-center gap-1 text-slate-400" data-tab="coach">
+                <span>🤖</span><span>المدرب</span>
             </button>
         </nav>
+
     </div>
-
-    <!-- النافذة المنبثقة: تسجيل جولة (Set) -->
-    <div id="set-modal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-xs p-5">
-            <h3 id="set-exercise-name" class="font-bold text-lg mb-4 text-center">اسم التمرين</h3>
-            <div class="space-y-3 mb-5">
-                <div>
-                    <label class="text-xs text-slate-400 block mb-1">رقم الجولة</label>
-                    <input type="number" id="set-number" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-center text-white" value="1" />
-                </div>
-                <div>
-                    <label class="text-xs text-slate-400 block mb-1">التكرارات (Reps)</label>
-                    <input type="number" id="set-reps" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-center text-white" value="10" />
-                </div>
-                <div>
-                    <label class="text-xs text-slate-400 block mb-1">الوزن (كجم)</label>
-                    <input type="number" id="set-weight" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-center text-white" value="0" />
-                </div>
-            </div>
-            <div class="flex gap-2">
-                <button id="save-set-btn" class="btn-primary flex-1 py-2 text-sm">حفظ الجولة</button>
-                <button id="close-set-modal" class="bg-slate-700 text-white flex-1 py-2 rounded-lg text-sm">إلغاء</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- النافذة المنبثقة: إضافة روتين جديد -->
-    <div id="routine-modal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-xs p-5">
-            <h3 class="font-bold text-lg mb-3">إنشاء روتين جديد</h3>
-            <input type="text" id="routine-name" placeholder="اسم الروتين (مثلاً: يوم الصدر)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white mb-3" />
-            <div id="routine-exercises-list" class="max-h-40 overflow-y-auto space-y-2 mb-4 border-t border-b border-slate-700 py-2">
-                <!-- قائمة التمارين للاختيار -->
-            </div>
-            <div class="flex gap-2">
-                <button id="save-routine-btn" class="btn-primary flex-1 py-2 text-sm">حفظ الروتين</button>
-                <button id="close-routine-modal" class="bg-slate-700 text-white flex-1 py-2 rounded-lg text-sm">إلغاء</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- النافذة المنبثقة: لوحة المشرف الخفية -->
-    <div id="admin-modal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm p-5">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-amber-400">لوحة المشرف ⚙️</h3>
-                <button id="close-admin-modal" class="text-slate-400 text-lg">&times;</button>
-            </div>
-            
-            <div id="admin-login-sec" class="space-y-3">
-                <input type="password" id="admin-password" placeholder="كلمة المرور" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white" />
-                <button id="admin-login-btn" class="btn-primary w-full py-2 text-sm">دخول</button>
-            </div>
-
-            <div id="admin-panel-content" class="hidden mt-4 space-y-4 pt-3 border-t border-slate-700">
-                <div class="space-y-2">
-                    <label class="text-xs text-slate-400">إنشاء كود تفعيل:</label>
-                    <select id="code-duration" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white">
-                        <option value="1m">اشتراك شهر واحد</option>
-                        <option value="3m">اشتراك 3 أشهر</option>
-                        <option value="1y">اشتراك سنة</option>
-                    </select>
-                    <button id="generate-code-btn" class="bg-amber-500 text-black font-bold w-full py-2 rounded-lg text-sm">توليد كود</button>
-                </div>
-                
-                <div>
-                    <h4 class="text-xs font-bold text-slate-400 mb-2">الأكواد المنشأة:</h4>
-                    <div id="codes-list" class="max-h-32 overflow-y-auto space-y-1 bg-slate-900 p-2 rounded-lg">
-                        <!-- الأكواد المنشأة -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- مدخل ملف الكاميرا المباشرة والتصوير -->
-    <input type="file" id="coach-image-input" accept="image/*" capture="environment" style="display:none;" />
 
     <script src="app.js"></script>
 </body>
