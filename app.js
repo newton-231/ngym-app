@@ -88,31 +88,27 @@ function toggleFavorite(exerciseId) {
     renderWorkouts();
 }
 
-// 4. حساب السعرات المحروقة بدقة بـ MET وتسجيل التمرين
+// 4. حساب السعرات المحروقة وتسجيل التمرين
 function logWorkout(exerciseId) {
     const userWeight = parseFloat(localStorage.getItem('userWeight')) || 70;
-    const durationMinutes = 15; // زمن تقديري للتمرين
-    const met = 4.5; // قيمة المجهود البدني الافتراضية
+    const durationMinutes = 15;
+    const met = 4.5;
 
-    // معادلة السعرات المحروقة
     const caloriesBurned = Math.round((met * 3.5 * userWeight * durationMinutes) / 200);
 
-    // تخزين السعرات المحروقة
     const today = new Date().toDateString();
     let burnedToday = parseFloat(localStorage.getItem('burned_' + today) || '0');
     burnedToday += caloriesBurned;
     localStorage.setItem('burned_' + today, burnedToday);
 
-    // إضافة نقاط XP وتحديث Streak
     addXP(50);
     updateStreak();
 
-    // تحديث الواجهات
     updateUIProgress();
     alert(`🔥 أحرقت حوالي ${caloriesBurned} سعرة حرارية! وتم إضافة 50 XP لحسابك.`);
 }
 
-// 5. حساب الرتب والـ XP والالتزام (Gamification)
+// 5. نظام الـ XP والتسلسل والرتب
 function addXP(amount) {
     let currentXP = parseInt(localStorage.getItem('userXP') || '0');
     currentXP += amount;
@@ -152,17 +148,41 @@ function updateRankUI() {
     document.getElementById('xp-progress').style.width = `${progressPercent}%`;
 }
 
-// 6. تحديث حاسبة السعرات والدائرة
+// 6. تحديث لوحة السعرات التفاعلية والماكروز (SVG Ring)
 function updateUIProgress() {
-    const targetCalories = 2000;
-    const eatenCalories = parseFloat(localStorage.getItem('eaten_' + new Date().toDateString()) || '0');
-    const burnedCalories = parseFloat(localStorage.getItem('burned_' + new Date().toDateString()) || '0');
+    const targetCalories = parseFloat(localStorage.getItem('userTargetCal')) || 2000;
+    const eatenCalories = parseFloat(localStorage.getItem('eaten_' + new Date().toDateString())) || 0;
+    const burnedCalories = parseFloat(localStorage.getItem('burned_' + new Date().toDateString())) || 0;
 
-    const remaining = targetCalories - eatenCalories + burnedCalories;
+    const remaining = Math.max(0, targetCalories - eatenCalories + burnedCalories);
 
     document.getElementById('remaining-calories').innerText = Math.round(remaining);
+    document.getElementById('target-cal').innerText = Math.round(targetCalories);
     document.getElementById('eaten-cal').innerText = Math.round(eatenCalories);
     document.getElementById('burned-cal').innerText = Math.round(burnedCalories);
+
+    // 1. تحريك الدائرة SVG
+    const circle = document.getElementById('cal-ring-fill');
+    if (circle) {
+        const circumference = 314;
+        const percent = Math.min(1, remaining / targetCalories);
+        const offset = circumference - (percent * circumference);
+        circle.style.strokeDashoffset = offset;
+    }
+
+    // 2. تحديث الماكروز والأشرطة
+    const proteinTarget = 150, carbsTarget = 200, fatTarget = 60;
+    const proteinCurr = parseFloat(localStorage.getItem('protein_' + new Date().toDateString())) || 0;
+    const carbsCurr = parseFloat(localStorage.getItem('carbs_' + new Date().toDateString())) || 0;
+    const fatCurr = parseFloat(localStorage.getItem('fat_' + new Date().toDateString())) || 0;
+
+    document.getElementById('protein-curr').innerText = Math.round(proteinCurr);
+    document.getElementById('carbs-curr').innerText = Math.round(carbsCurr);
+    document.getElementById('fat-curr').innerText = Math.round(fatCurr);
+
+    document.getElementById('protein-bar').style.width = `${Math.min(100, (proteinCurr / proteinTarget) * 100)}%`;
+    document.getElementById('carbs-bar').style.width = `${Math.min(100, (carbsCurr / carbsTarget) * 100)}%`;
+    document.getElementById('fat-bar').style.width = `${Math.min(100, (fatCurr / fatTarget) * 100)}%`;
 }
 
 // التشغيل الأولي عند فتح التطبيق
