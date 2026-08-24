@@ -1,256 +1,532 @@
-let exerciseDB = [];
+// ============================================================
+// NGym - التطبيق الكامل
+// ============================================================
+
+// ---------- بيانات وهمية للتمارين (سيتم استبدالها بـ BodyIQDB) ----------
+const MOCK_EXERCISES = [
+    { id: '1', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only', gifUrl: '' },
+    { id: '2', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only', gifUrl: '' },
+    { id: '3', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine', gifUrl: '' },
+    { id: '4', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other', gifUrl: '' },
+    { id: '5', name: 'Adductor', muscle: 'adductors', equipment: 'foam roll', gifUrl: '' },
+];
+
+let exerciseDB = [...MOCK_EXERCISES];
 let currentFilter = 'all';
-let activeExerciseId = null;
+let currentRoutineExercises = [];
 
-const BASE_IMAGE_URL = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
-const SVG_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏋️</text></svg>";
+// ============================================================
+// 1. التهيئة والتحميل
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    // إخفاء شاشة التحميل
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
 
-// 1. حساب السعرات الديناميكي بناءً على وزن المستخدم وهدفه
-function calculateDynamicTarget() {
-    const weight = parseFloat(localStorage.getItem('userWeight')) || 70;
-    const goal = localStorage.getItem('userGoal') || 'maintain'; // maintain, lose, gain
-    
-    let baseCal = weight * 24 * 1.3; // BMR تقريبي مع نشاط خفيف
-    if (goal === 'lose') baseCal -= 400;
-    if (goal === 'gain') baseCal += 400;
-    
-    localStorage.setItem('userTargetCal', Math.round(baseCal));
-    return Math.round(baseCal);
-}
+    // تحميل البيانات من localStorage
+    loadUserData();
+    loadChatHistory();
+    loadFavorites();
+    loadRoutines();
 
-function setupProfile() {
-    const weight = prompt("أدخل وزنك الحالي (كجم):", localStorage.getItem('userWeight') || "70");
-    const goal = prompt("حدد هدفك (lose: تخسيس, maintain: محافظة, gain: تضخيم):", localStorage.getItem('userGoal') || "maintain");
-    
-    if (weight) localStorage.setItem('userWeight', weight);
-    if (goal) localStorage.setItem('userGoal', goal);
-    
-    calculateDynamicTarget();
-    updateUIProgress();
-}
-
-// 2. جلب التمارين عرض بطاقات Liftoff مع الصور المتحركة
-function fetchExercises() {
-    fetch('./data/exercises.json')
-        .then(res => res.json())
-        .then(data => {
-            exerciseDB = data;
-            localStorage.setItem('cached_exerciseDB', JSON.stringify(data));
-            renderWorkouts();
-        })
-        .catch(() => {
-            const cached = localStorage.getItem('cached_exerciseDB');
-            if (cached) { exerciseDB = JSON.parse(cached); renderWorkouts(); }
-        });
-}
-
-function filterWorkouts(filterCategory, btnElement) {
-    currentFilter = filterCategory;
-    if (btnElement) {
-        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-        btnElement.classList.add('active');
-    }
+    // تحديث الواجهة
+    updateUI();
     renderWorkouts();
+    updateBodygraph();
+
+    // ربط الأحداث
+    setupEventListeners();
+    setupAdminPanel();
+    setupChat();
+    setupRoutines();
+    setupWorkoutLogging();
+    setupTabSwitching();
+});
+
+// ============================================================
+// 2. إدارة البيانات المحلية
+// ============================================================
+function loadUserData() {
+    // القيم الافتراضية
+    if (!localStorage.getItem('userWeight')) localStorage.setItem('userWeight', '70');
+    if (!localStorage.getItem('userGoal')) localStorage.setItem('userGoal', 'fitness');
+    if (!localStorage.getItem('streak')) localStorage.setItem('streak', '0');
+    if (!localStorage.getItem('xp')) localStorage.setItem('xp', '0');
+    if (!localStorage.getItem('rank')) localStorage.setItem('rank', 'برونزي');
+    if (!localStorage.getItem('eatenCalories')) localStorage.setItem('eatenCalories', '0');
+    if (!localStorage.getItem('eatenProtein')) localStorage.setItem('eatenProtein', '0');
+    if (!localStorage.getItem('eatenCarbs')) localStorage.setItem('eatenCarbs', '0');
+    if (!localStorage.getItem('eatenFats')) localStorage.setItem('eatenFats', '0');
+    if (!localStorage.getItem('burnedCalories')) localStorage.setItem('burnedCalories', '0');
+    if (!localStorage.getItem('todayDate')) localStorage.setItem('todayDate', new Date().toDateString());
 }
 
-function renderWorkouts() {
-    const container = document.getElementById('workout-container');
-    if (!container) return;
+function getMacrosTarget() {
+    const weight = parseFloat(localStorage.getItem('userWeight')) || 70;
+    const goal = localStorage.getItem('userGoal') || 'fitness';
+    let cal, protein, carbs, fats;
+    if (goal === 'bulking') { cal = weight * 40; protein = weight * 2.2; carbs = weight * 5; fats = weight * 0.9; }
+    else if (goal === 'cutting') { cal = weight * 30; protein = weight * 2.5; carbs = weight * 3; fats = weight * 0.7; }
+    else { cal = weight * 35; protein = weight * 2; carbs = weight * 4; fats = weight * 0.8; }
+    return { calories: Math.round(cal), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) };
+}
 
-    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-    
-    let filtered = exerciseDB.filter(ex => {
-        if (currentFilter === 'home') return ex.equipment === 'body only' || ex.equipment === 'bands';
-        if (currentFilter === 'favorites') return favorites.includes(ex.id);
-        if (currentFilter === 'all') return true;
-        return ex.primaryMuscles && ex.primaryMuscles.includes(currentFilter);
+// ============================================================
+// 3. تحديث الواجهة الرئيسية (دائرة، ماكروز، XP، رتب)
+// ============================================================
+function updateUI() {
+    // الماكروز المستهدفة
+    const target = getMacrosTarget();
+    const eaten = {
+        calories: parseInt(localStorage.getItem('eatenCalories')) || 0,
+        protein: parseInt(localStorage.getItem('eatenProtein')) || 0,
+        carbs: parseInt(localStorage.getItem('eatenCarbs')) || 0,
+        fats: parseInt(localStorage.getItem('eatenFats')) || 0
+    };
+    const burned = parseInt(localStorage.getItem('burnedCalories')) || 0;
+
+    // السعرات المتبقية
+    const remaining = Math.max(target.calories - eaten.calories + burned, 0);
+    document.getElementById('calories-left').textContent = remaining;
+    document.getElementById('target-cal').textContent = target.calories;
+    document.getElementById('eaten-cal').textContent = eaten.calories;
+    document.getElementById('burned-cal').textContent = burned;
+
+    // تحديث الدائرة
+    const ring = document.getElementById('calories-ring');
+    const circumference = 339.292;
+    const progress = Math.min((target.calories - remaining) / target.calories, 1);
+    ring.style.strokeDashoffset = circumference * (1 - progress);
+
+    // تحديث أشرطة الماكروز
+    updateMacroBar('protein', eaten.protein, target.protein);
+    updateMacroBar('carbs', eaten.carbs, target.carbs);
+    updateMacroBar('fats', eaten.fats, target.fats);
+
+    // تحديث XP والرتب
+    const xp = parseInt(localStorage.getItem('xp')) || 0;
+    const streak = parseInt(localStorage.getItem('streak')) || 0;
+    const rank = localStorage.getItem('rank') || 'برونزي';
+    const xpTarget = 450 + (streak * 20);
+    document.getElementById('xp-current').textContent = xp;
+    document.getElementById('xp-target').textContent = xpTarget;
+    document.getElementById('xp-bar').style.width = Math.min((xp / xpTarget) * 100, 100) + '%';
+    document.getElementById('rank-badge').textContent = rank;
+    document.getElementById('streak-days').textContent = streak;
+
+    // تحديد الرتبة القادمة
+    const ranks = ['مبتدي', 'برونزي', 'فضي', 'ذهبي', 'ألماسي', 'أسطوري'];
+    let nextRank = 'ذهبي';
+    const idx = ranks.indexOf(rank);
+    if (idx !== -1 && idx < ranks.length - 1) nextRank = ranks[idx + 1];
+    document.getElementById('next-rank').textContent = nextRank;
+}
+
+function updateMacroBar(type, current, target) {
+    const percent = Math.min((current / target) * 100, 100);
+    document.getElementById(`${type}-bar`).style.width = percent + '%';
+    document.getElementById(`${type}-values`).textContent = `${Math.round(current)} / ${Math.round(target)}g`;
+}
+
+// ============================================================
+// 4. خريطة العضلات (Bodygraph)
+// ============================================================
+function updateBodygraph() {
+    // محاكاة: نلون العضلات حسب آخر تمرين مسجل
+    const muscles = ['chest', 'core', 'shoulders', 'arms', 'legs'];
+    const colors = ['#4ade80', '#4ade80', '#2a2a2a', '#2a2a2a', '#2a2a2a'];
+    // في التطبيق الحقيقي: نقرأ من localStorage سجلات اليوم ونلون حسب التمارين المسجلة
+    muscles.forEach((m, i) => {
+        const el = document.getElementById(`muscle-${m}`);
+        if (el) el.setAttribute('fill', colors[i] || '#2a2a2a');
     });
-
-    container.innerHTML = filtered.slice(0, 30).map(ex => {
-        const isFav = favorites.includes(ex.id);
-        // مسار الصورة/الـ GIF من المعتمد في BodyIQDB
-        const imgPath = (ex.images && ex.images.length > 0) ? `${BASE_IMAGE_URL}${ex.images[0]}` : SVG_FALLBACK;
-        const muscle = ex.primaryMuscles ? ex.primaryMuscles[0] : 'عام';
-
-        return `
-            <div class="workout-card">
-                <div class="workout-header">
-                    <img src="${imgPath}" class="workout-img" loading="lazy" onerror="this.src='${SVG_FALLBACK}'" />
-                    <div style="flex:1;">
-                        <h4 style="color:#fff; font-size:0.95em;">${ex.name}</h4>
-                        <span style="font-size:0.75em; color:#00e676; background:#111; padding:2px 6px; border-radius:4px;">🎯 ${muscle}</span>
-                    </div>
-                    <button onclick="toggleFavorite('${ex.id}')" style="background:none; border:none; font-size:1.2em; cursor:pointer;">${isFav ? '⭐' : '☆'}</button>
-                </div>
-                <div style="padding:10px; display:flex; justify-content:space-between; align-items:center; background:#181818;">
-                    <span style="font-size:0.8em; color:#aaa;">المعدات: ${ex.equipment || 'وزن الجسم'}</span>
-                    <button class="btn-action" onclick="openSetModal('${ex.id}', '${ex.name}')">ابدأ التمرين 🏋️</button>
-                </div>
-            </div>
-        `;
-    }).join('');
+    // نسخة للأكتاف الثنائية
+    document.querySelectorAll('[id^="muscle-shoulders"]').forEach(el => el.setAttribute('fill', colors[2] || '#2a2a2a'));
+    document.querySelectorAll('[id^="muscle-arms"]').forEach(el => el.setAttribute('fill', colors[3] || '#2a2a2a'));
+    document.querySelectorAll('[id^="muscle-legs"]').forEach(el => el.setAttribute('fill', colors[4] || '#2a2a2a'));
 }
 
-// 3. نافذة تسجيل الجولات (Sets & Reps) بأسلوب Liftoff
-function openSetModal(id, name) {
-    activeExerciseId = id;
-    document.getElementById('modal-exercise-name').innerText = name;
-    document.getElementById('sets-container').innerHTML = '';
-    addSetRow(); // إضافة جولة أولى تلقائياً
+// ============================================================
+// 5. نظام التمارين (عرض، تصفية، مفضلة)
+// ============================================================
+function renderWorkouts() {
+    let filtered = [...exerciseDB];
+    if (currentFilter === 'favorites') {
+        const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+        filtered = filtered.filter(ex => favs.includes(ex.id));
+    } else if (currentFilter === 'home') {
+        filtered = filtered.filter(ex => ex.equipment && ex.equipment.includes('body'));
+    } else if (currentFilter !== 'all') {
+        filtered = filtered.filter(ex => ex.muscle && ex.muscle.includes(currentFilter));
+    }
+    // إزالة التكرارات حسب الـ id
+    const seen = new Set();
+    filtered = filtered.filter(ex => { const key = ex.id; if (seen.has(key)) return false; seen.add(key); return true; });
+
+    const container = document.getElementById('workout-list');
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-8">لا توجد تمارين مطابقة</div>';
+        return;
+    }
+    container.innerHTML = filtered.map(ex => `
+        <div class="workout-card" data-id="${ex.id}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h4 class="font-bold">${ex.name}</h4>
+                    <p class="text-xs text-gray-400">${ex.muscle || ''} ${ex.equipment ? '· ' + ex.equipment : ''}</p>
+                </div>
+                <button class="favorite-btn ${isFavorite(ex.id) ? 'text-yellow-400' : 'text-gray-500'}" data-id="${ex.id}">⭐</button>
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button class="start-workout-btn btn-primary text-sm py-1 px-3" data-id="${ex.id}">ابدا التمرين</button>
+                ${ex.gifUrl ? `<img src="${ex.gifUrl}" onerror="this.style.display='none'" class="w-12 h-12 rounded object-cover" />` : ''}
+            </div>
+        </div>
+    `).join('');
+
+    // ربط الأحداث (لأزرار البدء والمفضلة)
+    document.querySelectorAll('.start-workout-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            openSetModal(id);
+        });
+    });
+    document.querySelectorAll('.favorite-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            toggleFavorite(id);
+            renderWorkouts();
+        });
+    });
+}
+
+function isFavorite(id) {
+    const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+    return favs.includes(id);
+}
+
+function toggleFavorite(id) {
+    let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+    if (favs.includes(id)) favs = favs.filter(f => f !== id);
+    else favs.push(id);
+    localStorage.setItem('favorites', JSON.stringify(favs));
+}
+
+// ============================================================
+// 6. نافذة تسجيل الجولات (Sets)
+// ============================================================
+let currentExerciseId = null;
+
+function openSetModal(exerciseId) {
+    currentExerciseId = exerciseId;
+    const ex = exerciseDB.find(e => e.id === exerciseId);
+    document.getElementById('set-exercise-name').textContent = ex ? ex.name : 'تمرين';
+    document.getElementById('set-number').value = 1;
+    document.getElementById('set-reps').value = 10;
+    document.getElementById('set-weight').value = 0;
     document.getElementById('set-modal').style.display = 'flex';
 }
 
-function closeModal() {
+function closeSetModal() {
     document.getElementById('set-modal').style.display = 'none';
+    currentExerciseId = null;
 }
 
-function addSetRow() {
-    const container = document.getElementById('sets-container');
-    const setNum = container.children.length + 1;
-    const row = document.createElement('div');
-    row.className = 'set-row';
-    row.innerHTML = `
-        <span style="font-size:0.8em; color:#888;">جولة ${setNum}</span>
-        <input type="number" class="set-weight" placeholder="وزن (كجم)" value="0">
-        <input type="number" class="set-reps" placeholder="تكرار" value="10">
-    `;
-    container.appendChild(row);
-}
+function saveSet() {
+    if (!currentExerciseId) return;
+    const reps = parseInt(document.getElementById('set-reps').value) || 0;
+    const weight = parseFloat(document.getElementById('set-weight').value) || 0;
+    // حساب السعرات المحروقة (MET تقديري)
+    const userWeight = parseFloat(localStorage.getItem('userWeight')) || 70;
+    const met = 4.5; // قيمة تقريبية لتمارين المقاومة
+    const duration = 0.05; // 3 دقائق تقريباً لكل جولة
+    const burned = (met * 3.5 * userWeight * duration) / 200;
+    const currentBurned = parseInt(localStorage.getItem('burnedCalories')) || 0;
+    localStorage.setItem('burnedCalories', Math.round(currentBurned + burned));
 
-function saveWorkoutLog() {
-    const weights = Array.from(document.querySelectorAll('.set-weight')).map(i => parseFloat(i.value) || 0);
-    const reps = Array.from(document.querySelectorAll('.set-reps')).map(i => parseFloat(i.value) || 0);
-    
-    // حساب حرق تقريبي بناءً على الجولات
-    const ex = exerciseDB.find(e => e.id === activeExerciseId);
-    const totalReps = reps.reduce((a, b) => a + b, 0);
-    const burned = Math.round(totalReps * 0.5 + 15);
+    // إضافة XP
+    const xpGain = Math.round(reps / 2) + 5;
+    const currentXP = parseInt(localStorage.getItem('xp')) || 0;
+    localStorage.setItem('xp', currentXP + xpGain);
 
+    // تحديث الـ Streak
     const today = new Date().toDateString();
-    let burnedToday = parseFloat(localStorage.getItem('burned_' + today) || '0');
-    localStorage.setItem('burned_' + today, burnedToday + burned);
-
-    // تحديث خريطة العضلات لتلك العضلة
-    if (ex && ex.primaryMuscles) {
-        let activeMuscles = JSON.parse(localStorage.getItem('activeMuscles_' + today) || '[]');
-        ex.primaryMuscles.forEach(m => { if(!activeMuscles.includes(m)) activeMuscles.push(m); });
-        localStorage.setItem('activeMuscles_' + today, JSON.stringify(activeMuscles));
+    if (localStorage.getItem('lastWorkoutDate') !== today) {
+        const streak = parseInt(localStorage.getItem('streak')) || 0;
+        localStorage.setItem('streak', streak + 1);
+        localStorage.setItem('lastWorkoutDate', today);
     }
 
-    addXP(75);
-    updateStreak();
-    updateUIProgress();
-    updateBodyMap();
-    closeModal();
-    alert(`✅ تم تسجيل ${reps.length} جولات بنجاح! +75 XP`);
+    // تحديث خريطة العضلات
+    const ex = exerciseDB.find(e => e.id === currentExerciseId);
+    if (ex && ex.muscle) {
+        const muscleMap = { abdominals: 'core', hamstrings: 'legs', adductors: 'legs' };
+        const muscle = muscleMap[ex.muscle] || 'core';
+        // نلون العضلة في الخريطة (سيتم تطبيقه في下次 تحديث)
+    }
+
+    // إغلاق النافذة وتحديث الواجهة
+    closeSetModal();
+    updateUI();
+    updateBodygraph();
+    alert(`🔥 أحسنت! أحرقت ${Math.round(burned)} سعرة وحصلت على ${xpGain} XP`);
 }
 
-// 4. نظام الروتينات المخصصة
-function createNewRoutine() {
-    const name = prompt("أدخل اسم الروتين الجديد (مثال: روتين الصدر والبطن):");
-    if (!name) return;
-    
-    let routines = JSON.parse(localStorage.getItem('customRoutines') || '[]');
-    routines.push({ id: Date.now(), name: name, count: 0 });
-    localStorage.setItem('customRoutines', JSON.stringify(routines));
-    renderRoutines();
-}
-
-function renderRoutines() {
-    const routines = JSON.parse(localStorage.getItem('customRoutines') || '[]');
+// ============================================================
+// 7. نظام الروتينات
+// ============================================================
+function loadRoutines() {
+    const routines = JSON.parse(localStorage.getItem('routines') || '[]');
     const container = document.getElementById('routines-list');
     if (routines.length === 0) {
         container.innerHTML = 'لا توجد روتينات مخصصة بعد.';
         return;
     }
-    container.innerHTML = routines.map(r => `
-        <div style="background:#252525; padding:8px 12px; border-radius:8px; margin-top:5px; display:flex; justify-content:space-between;">
-            <span>📌 ${r.name}</span>
-            <button onclick="alert('تم تفعيل الروتين')" class="btn-action" style="padding:2px 8px; font-size:0.75em;">بدء</button>
+    container.innerHTML = routines.map(r => `<div class="text-sm">• ${r.name} (${r.exercises.length} تمارين)</div>`).join('');
+}
+
+function openRoutineModal() {
+    document.getElementById('routine-modal').style.display = 'flex';
+    // عرض قائمة التمارين المتاحة لاختيارها
+    const list = document.getElementById('routine-exercises-list');
+    list.innerHTML = exerciseDB.map(ex => `
+        <div class="flex items-center gap-2 text-sm">
+            <input type="checkbox" class="routine-check" data-id="${ex.id}" />
+            <span>${ex.name}</span>
         </div>
     `).join('');
 }
 
-// 5. تحديث خريطة العضلات (Bodygraph)
-function updateBodyMap() {
-    const today = new Date().toDateString();
-    const activeMuscles = JSON.parse(localStorage.getItem('activeMuscles_' + today) || '[]');
-    
-    activeMuscles.forEach(m => {
-        const el = document.getElementById('muscle-' + m);
-        if (el) el.setAttribute('fill', '#00e676');
-        const el2 = document.getElementById('muscle-' + m + '-2');
-        if (el2) el2.setAttribute('fill', '#00e676');
+function saveRoutine() {
+    const name = document.getElementById('routine-name').value.trim();
+    if (!name) return alert('الرجاء إدخال اسم للروتين');
+    const checks = document.querySelectorAll('.routine-check:checked');
+    const exercises = Array.from(checks).map(c => c.dataset.id);
+    if (exercises.length < 2) return alert('اختر على الأقل تمرينين');
+    const routines = JSON.parse(localStorage.getItem('routines') || '[]');
+    routines.push({ name, exercises, createdAt: new Date().toISOString() });
+    localStorage.setItem('routines', JSON.stringify(routines));
+    document.getElementById('routine-modal').style.display = 'none';
+    loadRoutines();
+}
+
+// ============================================================
+// 8. المدرب الذكي (Chat)
+// ============================================================
+function setupChat() {
+    document.getElementById('send-chat-btn').addEventListener('click', sendChatMessage);
+    document.getElementById('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+}
+
+function loadChatHistory() {
+    const history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = history.map(msg => `
+        <div class="mb-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}">
+            <span class="inline-block px-4 py-2 rounded-2xl ${msg.role === 'user' ? 'bg-green-600 text-white' : 'bg-gray-700 text-white'}">
+                ${msg.text}
+            </span>
+        </div>
+    `).join('');
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    // إضافة رسالة المستخدم
+    const history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+    history.push({ role: 'user', text });
+    localStorage.setItem('chatHistory', JSON.stringify(history));
+    loadChatHistory();
+
+    // إرسال إلى الخادم
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: history.slice(-6),
+                systemPrompt: `أنت مدرب لياقة. وزن المستخدم ${localStorage.getItem('userWeight')} كجم، هدفه ${localStorage.getItem('userGoal')}.`
+            })
+        });
+        const data = await response.json();
+        const reply = data.reply || 'عذراً، لم أفهم، حاول مجدداً.';
+        history.push({ role: 'model', text: reply });
+        localStorage.setItem('chatHistory', JSON.stringify(history));
+        loadChatHistory();
+    } catch (error) {
+        console.error('خطأ في الاتصال بالمدرب:', error);
+        // رسالة احتياطية
+        history.push({ role: 'model', text: 'حدث عطل في الاتصال، حاول لاحقاً.' });
+        localStorage.setItem('chatHistory', JSON.stringify(history));
+        loadChatHistory();
+    }
+}
+
+// ============================================================
+// 9. لوحة المشرف (Admin Panel)
+// ============================================================
+let adminClickCount = 0;
+
+function setupAdminPanel() {
+    // الضغط 5 مرات على الشعار (في الرأس)
+    document.querySelector('header h1')?.addEventListener('click', function() {
+        adminClickCount++;
+        if (adminClickCount === 5) {
+            adminClickCount = 0;
+            document.getElementById('admin-modal').style.display = 'flex';
+            document.getElementById('admin-password').focus();
+        }
+        setTimeout(() => { adminClickCount = 0; }, 3000);
+    });
+
+    document.getElementById('admin-login-btn').addEventListener('click', function() {
+        const pass = document.getElementById('admin-password').value;
+        const stored = localStorage.getItem('admin_password') || 'NGYM2026';
+        if (pass === stored) {
+            document.getElementById('admin-panel-content').classList.remove('hidden');
+            renderCodes();
+        } else {
+            alert('كلمة المرور غير صحيحة');
+        }
+    });
+
+    document.getElementById('generate-code-btn').addEventListener('click', function() {
+        const duration = document.getElementById('code-duration').value;
+        const prefix = { '1m': 'NGYM-1M', '3m': 'NGYM-3M', '1y': 'NGYM-1Y' }[duration];
+        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const code = `${prefix}-${random}`;
+        const expiry = new Date();
+        if (duration === '1m') expiry.setMonth(expiry.getMonth() + 1);
+        else if (duration === '3m') expiry.setMonth(expiry.getMonth() + 3);
+        else if (duration === '1y') expiry.setFullYear(expiry.getFullYear() + 1);
+        const codes = JSON.parse(localStorage.getItem('admin_codes') || '[]');
+        codes.push({ code, expiry: expiry.toISOString(), used: false });
+        localStorage.setItem('admin_codes', JSON.stringify(codes));
+        renderCodes();
+        alert(`تم إنشاء الكود: ${code}`);
+    });
+
+    document.getElementById('close-admin-modal').addEventListener('click', function() {
+        document.getElementById('admin-modal').style.display = 'none';
+        document.getElementById('admin-panel-content').classList.add('hidden');
     });
 }
 
-// 6. تحديث الرتب، الشارات، والسعرات
-function addXP(amount) {
-    let currentXP = parseInt(localStorage.getItem('userXP') || '0');
-    currentXP += amount;
-    localStorage.setItem('userXP', currentXP);
-    updateRankUI();
+function renderCodes() {
+    const codes = JSON.parse(localStorage.getItem('admin_codes') || '[]');
+    const container = document.getElementById('codes-list');
+    container.innerHTML = codes.map(c => `
+        <div class="flex justify-between text-sm border-b border-gray-700 py-1">
+            <span>${c.code}</span>
+            <span class="${c.used ? 'text-red-400' : 'text-green-400'}">${c.used ? 'مستخدم' : 'فعال'}</span>
+        </div>
+    `).join('');
 }
 
-function updateRankUI() {
-    const xp = parseInt(localStorage.getItem('userXP') || '0');
-    let rank = { name: 'حجري 🪵', next: 'برونزي 🥉', color: '#8d6e63', min: 0, max: 100 };
-    
-    if (xp >= 1000) rank = { name: 'ألماسي 💎', next: 'القمة 🏆', color: '#00e5ff', min: 1000, max: 2000 };
-    else if (xp >= 600) rank = { name: 'ذهبي 🥇', next: 'ألماسي 💎', color: '#ffd700', min: 600, max: 1000 };
-    else if (xp >= 300) rank = { name: 'فضي 🥈', next: 'ذهبي 🥇', color: '#c0c0c0', min: 300, max: 600 };
-    else if (xp >= 100) rank = { name: 'برونزي 🥉', next: 'فضي 🥈', color: '#cd7f32', min: 100, max: 300 };
-
-    document.getElementById('user-rank').innerText = rank.name;
-    document.getElementById('user-rank').style.background = rank.color;
-    document.getElementById('next-rank-name').innerText = rank.next;
-    document.getElementById('xp-count').innerText = xp;
-    document.getElementById('next-xp').innerText = rank.max;
-
-    const progressPercent = Math.min(((xp - rank.min) / (rank.max - rank.min)) * 100, 100);
-    document.getElementById('xp-progress').style.width = `${progressPercent}%`;
+// ============================================================
+// 10. تبديل التبويبات
+// ============================================================
+function setupTabSwitching() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+            this.classList.add('active-tab');
+            const tab = this.dataset.tab;
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden-tab'));
+            document.getElementById(`tab-${tab}`).classList.remove('hidden-tab');
+            if (tab === 'workouts') renderWorkouts();
+            if (tab === 'coach') loadChatHistory();
+        });
+    });
 }
 
-function updateUIProgress() {
-    const targetCal = parseInt(localStorage.getItem('userTargetCal')) || calculateDynamicTarget();
-    const eatenCal = parseFloat(localStorage.getItem('eaten_' + new Date().toDateString())) || 0;
-    const burnedCal = parseFloat(localStorage.getItem('burned_' + new Date().toDateString())) || 0;
+// ============================================================
+// 11. ربط الأحداث العامة
+// ============================================================
+function setupEventListeners() {
+    document.getElementById('save-set-btn').addEventListener('click', saveSet);
+    document.getElementById('close-set-modal').addEventListener('click', closeSetModal);
+    document.getElementById('create-routine-btn').addEventListener('click', openRoutineModal);
+    document.getElementById('save-routine-btn').addEventListener('click', saveRoutine);
+    document.getElementById('close-routine-modal').addEventListener('click', function() {
+        document.getElementById('routine-modal').style.display = 'none';
+    });
 
-    const remaining = Math.max(0, targetCal - eatenCal + burnedCal);
+    // أشرطة التصفية
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            currentFilter = this.dataset.filter;
+            renderWorkouts();
+        });
+    });
 
-    document.getElementById('remaining-calories').innerText = remaining;
-    document.getElementById('target-cal').innerText = targetCal;
-    document.getElementById('eaten-cal').innerText = eatenCal;
-    document.getElementById('burned-cal').innerText = burnedCal;
+    // رفع الصورة (محاكاة)
+    document.getElementById('upload-image-btn').addEventListener('click', function() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    // محاكاة إرسال الصورة للمدرب
+                    document.getElementById('chat-input').value = '📷 أرسلت صورة وجبة، قم بتحليلها';
+                    sendChatMessage();
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        input.click();
+    });
 
-    const circle = document.getElementById('cal-ring-fill');
-    if (circle) {
-        const offset = 314 - (Math.min(1, remaining / targetCal) * 314);
-        circle.style.strokeDashoffset = offset;
-    }
+    // تسجيل الصوت (محاكاة)
+    document.getElementById('record-audio-btn').addEventListener('click', function() {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    // محاكاة تسجيل 3 ثوان
+                    document.getElementById('chat-input').value = '🎙️ رسالة صوتية: أريد تمرين للبطن';
+                    sendChatMessage();
+                    stream.getTracks().forEach(t => t.stop());
+                })
+                .catch(() => alert('الرجاء السماح بالوصول إلى الميكروفون'));
+        } else {
+            alert('المتصفح لا يدعم التسجيل الصوتي');
+        }
+    });
+
+    // إغلاق النوافذ المنبثقة بالنقر خارجها
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) this.style.display = 'none';
+        });
+    });
 }
 
-function toggleFavorite(id) {
-    let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-    favs = favs.includes(id) ? favs.filter(i => i !== id) : [...favs, id];
-    localStorage.setItem('favorites', JSON.stringify(favs));
-    renderWorkouts();
+// ============================================================
+// 12. تهيئة بيانات وهمية للتجربة
+// ============================================================
+// محاكاة تحميل بيانات BodyIQDB
+function loadExerciseData() {
+    // في التطبيق الحقيقي: fetch('/data/exercises.json')
+    // ولكن نستخدم البيانات الوهمية الموجودة
+    console.log('تم تحميل ' + exerciseDB.length + ' تمرين');
 }
 
-function updateStreak() {
-    const today = new Date().toDateString();
-    if (localStorage.getItem('lastWorkoutDate') !== today) {
-        let streak = parseInt(localStorage.getItem('userStreak') || '0') + 1;
-        localStorage.setItem('userStreak', streak);
-        localStorage.setItem('lastWorkoutDate', today);
-    }
-    document.getElementById('streak-count').innerText = localStorage.getItem('userStreak') || '0';
-}
+loadExerciseData();
 
-document.addEventListener('DOMContentLoaded', () => {
-    fetchExercises();
-    updateRankUI();
-    updateUIProgress();
-    renderRoutines();
-    updateBodyMap();
-});
+// تشغيل تحديث دوري كل 30 ثانية
+setInterval(() => {
+    updateUI();
+    updateBodygraph();
+}, 30000);
+
+console.log('🚀 NGym جاهز!');
