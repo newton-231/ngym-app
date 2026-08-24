@@ -3,40 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGym - منصة اللياقة البدنية</title>
+    <title>NGym - منصة اللياقة البدنية Pro</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-        body { background-color: #121212; color: #ffffff; padding: 15px; }
+        body { background-color: #121212; color: #ffffff; padding: 15px; padding-bottom: 80px; }
         
-        /* شريط البروفايل والرتب */
-        .profile-card { background: #1e1e1e; padding: 15px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #2a2a2a; }
+        .profile-card, .dashboard-card, .routine-card { background: #1e1e1e; padding: 15px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #2a2a2a; }
         .rank-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.85em; margin-top: 5px; }
         .progress-bar-bg { background: #2a2a2a; height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; }
         .progress-bar-fill { background: #00e676; height: 100%; width: 0%; transition: width 0.4s ease; }
         
-        /* بطاقة السعرات والماكروز */
-        .dashboard-card { background: #1e1e1e; border-radius: 20px; padding: 20px; margin-bottom: 20px; border: 1px solid #2a2a2a; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
-        
-        /* أشرطة التصفية */
         .filter-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; }
-        .filter-btn { background: #252525; color: #fff; border: 1px solid #333; padding: 8px 14px; border-radius: 20px; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
-        .filter-btn.active { background: #00e676; color: #000; font-weight: bold; border-color: #00e676; }
+        .filter-btn { background: #252525; color: #fff; border: 1px solid #333; padding: 8px 14px; border-radius: 20px; cursor: pointer; white-space: nowrap; }
+        .filter-btn.active { background: #00e676; color: #000; font-weight: bold; }
         
-        /* بطاقات التمارين */
-        .workout-card { background: #1a1a1a; padding: 15px; border-radius: 12px; margin-bottom: 15px; border-right: 4px solid #00e676; display: flex; gap: 15px; align-items: center; }
-        .workout-img { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; background: #252525; }
-        .fav-btn { background: transparent; border: none; font-size: 1.2em; cursor: pointer; }
-        .complete-btn { background: #00e676; color: #000; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        /* بطاقة التمرين بأسلوب Liftoff */
+        .workout-card { background: #1a1a1a; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a2a; overflow: hidden; }
+        .workout-header { padding: 12px; display: flex; gap: 12px; align-items: center; background: #222; }
+        .workout-img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; background: #111; }
+        
+        .btn-action { background: #00e676; color: #000; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-secondary { background: #333; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+
+        /* Modal النافذة المنبثقة للجولات */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-content { background: #1e1e1e; padding: 20px; border-radius: 16px; width: 90%; max-width: 400px; border: 1px solid #333; }
+        .set-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .set-row input { width: 70px; padding: 8px; border-radius: 6px; border: 1px solid #333; background: #111; color: #fff; text-align: center; }
     </style>
 </head>
 <body>
 
-    <!-- قسم البروفايل ونظام الرتب -->
+    <!-- قسم البروفايل ونظام الرتب والشارات -->
     <div class="profile-card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h3 style="font-size: 1.1em;">أهلاً بك يا بطل 🦾</h3>
-                <span id="user-rank" class="rank-badge" style="background:#555; color:#fff;">حجري 🪵</span>
+                <span id="user-rank" class="rank-badge">حجري 🪵</span>
             </div>
             <div style="text-align: left;">
                 <span style="font-size: 0.8em; color: #aaa;">الالتزام (Streak)</span>
@@ -46,80 +49,68 @@
         <div class="progress-bar-bg">
             <div id="xp-progress" class="progress-bar-fill"></div>
         </div>
-        <div style="font-size: 0.75em; color: #aaa; margin-top: 5px; text-align: left;">
-            <span id="xp-count">0</span> / <span id="next-xp">100</span> XP
+        <div style="display:flex; justify-content:space-between; font-size: 0.75em; color: #aaa; margin-top: 5px;">
+            <span>الرتبة القادمة: <b id="next-rank-name" style="color:#00e676;">برونزي</b></span>
+            <span><span id="xp-count">0</span> / <span id="next-xp">100</span> XP</span>
+        </div>
+        <!-- الشارات (Badges) -->
+        <div id="badges-container" style="display:flex; gap:8px; margin-top:12px; overflow-x:auto;">
+            <span title="البداية" style="background:#2a2a2a; padding:4px 8px; border-radius:8px; font-size:0.8em;">🎯 مبتدئ</span>
         </div>
     </div>
 
-    <!-- لوحة السعرات والماكروز التفاعلية -->
+    <!-- لوحة السعرات والماكروز الديناميكية -->
     <div class="dashboard-card">
-        
-        <!-- الدائرة التفاعلية SVG -->
-        <div style="position:relative; width:180px; height:180px; margin:0 auto 15px auto;">
-            <svg width="180" height="180" viewBox="0 0 120 120" style="transform: rotate(-90deg);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span style="font-size:0.9em; color:#aaa;">الملف الشخصي والحسابات</span>
+            <button onclick="setupProfile()" class="btn-secondary" style="font-size:0.75em; padding:4px 8px;">⚙️ تعديل الوزن والهدف</button>
+        </div>
+        <div style="position:relative; width:150px; height:150px; margin:0 auto 15px auto;">
+            <svg width="150" height="150" viewBox="0 0 120 120" style="transform: rotate(-90deg);">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#2a2a2a" stroke-width="10" />
                 <circle id="cal-ring-fill" cx="60" cy="60" r="50" fill="none" stroke="#00e676" stroke-width="10" 
-                        stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round" 
-                        style="transition: stroke-dashoffset 0.8s ease;" />
+                        stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round" style="transition: stroke-dashoffset 0.8s ease;" />
             </svg>
-            
             <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center;">
-                <span id="remaining-calories" style="font-size:2em; font-weight:800; color:#fff; display:block; line-height:1;">2000</span>
-                <span style="font-size:0.75em; color:#888; text-transform:uppercase; letter-spacing:1px;">متبقي kcal</span>
+                <span id="remaining-calories" style="font-size:1.8em; font-weight:800; color:#fff; display:block;">2000</span>
+                <span style="font-size:0.7em; color:#888;">متبقي kcal</span>
             </div>
         </div>
 
-        <!-- أرقام السعرات -->
-        <div style="display:flex; justify-content:space-around; text-align:center; padding-bottom:15px; border-bottom:1px solid #2a2a2a; margin-bottom:15px;">
-            <div>
-                <span style="font-size:0.8em; color:#888;">المستهدف</span>
-                <h4 id="target-cal" style="color:#fff; margin-top:2px;">2000</h4>
-            </div>
-            <div>
-                <span style="font-size:0.8em; color:#888;">المأكول</span>
-                <h4 id="eaten-cal" style="color:#ffb74d; margin-top:2px;">0</h4>
-            </div>
-            <div>
-                <span style="font-size:0.8em; color:#888;">المحروق</span>
-                <h4 id="burned-cal" style="color:#00e676; margin-top:2px;">0</h4>
-            </div>
-        </div>
-
-        <!-- أشرطة الماكروز -->
-        <div class="macros-container" style="display:flex; flex-direction:column; gap:10px;">
-            <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:4px;">
-                    <span style="color:#ff5252; font-weight:bold;">🥩 بروتين</span>
-                    <span style="color:#aaa;"><span id="protein-curr">0</span> / <span id="protein-target">150</span>g</span>
-                </div>
-                <div style="background:#2a2a2a; height:6px; border-radius:3px; overflow:hidden;">
-                    <div id="protein-bar" style="background:#ff5252; width:0%; height:100%; transition:width 0.5s ease;"></div>
-                </div>
-            </div>
-
-            <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:4px;">
-                    <span style="color:#ffb74d; font-weight:bold;">🍞 كربوهيدرات</span>
-                    <span style="color:#aaa;"><span id="carbs-curr">0</span> / <span id="carbs-target">200</span>g</span>
-                </div>
-                <div style="background:#2a2a2a; height:6px; border-radius:3px; overflow:hidden;">
-                    <div id="carbs-bar" style="background:#ffb74d; width:0%; height:100%; transition:width 0.5s ease;"></div>
-                </div>
-            </div>
-
-            <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:4px;">
-                    <span style="color:#4fc3f7; font-weight:bold;">🥑 دهون صحية</span>
-                    <span style="color:#aaa;"><span id="fat-curr">0</span> / <span id="fat-target">60</span>g</span>
-                </div>
-                <div style="background:#2a2a2a; height:6px; border-radius:3px; overflow:hidden;">
-                    <div id="fat-bar" style="background:#4fc3f7; width:0%; height:100%; transition:width 0.5s ease;"></div>
-                </div>
-            </div>
+        <div style="display:flex; justify-content:space-around; text-align:center; padding-bottom:10px; border-bottom:1px solid #2a2a2a; margin-bottom:10px;">
+            <div><span style="font-size:0.75em; color:#888;">المستهدف</span><h4 id="target-cal">2000</h4></div>
+            <div><span style="font-size:0.75em; color:#888;">المأكول</span><h4 id="eaten-cal" style="color:#ffb74d;">0</h4></div>
+            <div><span style="font-size:0.75em; color:#888;">المحروق</span><h4 id="burned-cal" style="color:#00e676;">0</h4></div>
         </div>
     </div>
 
-    <!-- تبويب أشرطة التصفية وقائمة التمارين -->
+    <!-- خريطة العضلات التفاعلية (Bodygraph SVG) -->
+    <div class="dashboard-card" style="text-align:center;">
+        <h4 style="font-size:0.9em; margin-bottom:10px; color:#aaa;">🗺️ خريطة تركيز العضلات اليومية</h4>
+        <div style="display:flex; justify-content:center; gap:20px;">
+            <svg id="bodymap-svg" width="100" height="160" viewBox="0 0 100 200" style="background:#111; border-radius:10px; padding:5px;">
+                <!-- صدر -->
+                <rect id="muscle-chest" x="35" y="45" width="30" height="20" rx="5" fill="#333" />
+                <!-- بطن -->
+                <rect id="muscle-abdominals" x="38" y="68" width="24" height="30" rx="4" fill="#333" />
+                <!-- أرجل (فخذ) -->
+                <rect id="muscle-quadriceps" x="32" y="102" width="15" height="45" rx="5" fill="#333" />
+                <rect id="muscle-quadriceps-2" x="53" y="102" width="15" height="45" rx="5" fill="#333" />
+            </svg>
+        </div>
+        <p style="font-size:0.75em; color:#666; margin-top:5px;">تتوهج العضلات باللون الأخضر فور تسجيل تمارينها اليوم</p>
+    </div>
+
+    <!-- إدارة الروتينات -->
+    <div class="routine-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h4>📋 روتيناتي اليومية</h4>
+            <button onclick="createNewRoutine()" class="btn-action" style="font-size:0.8em;">+ إنتاج روتين</button>
+        </div>
+        <div id="routines-list" style="margin-top:10px; font-size:0.85em; color:#aaa;">لا توجد روتينات مخصصة بعد.</div>
+    </div>
+
+    <!-- قائمة التمارين والفلترة -->
     <section id="tab-workouts">
         <div class="filter-tabs">
             <button class="filter-btn active" onclick="filterWorkouts('all', this)">📋 الكل</button>
@@ -130,10 +121,23 @@
             <button class="filter-btn" onclick="filterWorkouts('abdominals', this)">🔥 بطن</button>
         </div>
 
-        <div id="workout-container">
-            <!-- يتم تحميل البطاقات هنا تلقائياً -->
-        </div>
+        <div id="workout-container"></div>
     </section>
+
+    <!-- Modal تسجيل الجولات بأسلوب Liftoff -->
+    <div id="set-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-exercise-name" style="margin-bottom:15px; color:#00e676;">اسم التمرين</h3>
+            <div id="sets-container">
+                <!-- صفوف الجولات تظهر هنا -->
+            </div>
+            <button onclick="addSetRow()" class="btn-secondary" style="width:100%; margin-bottom:10px;">+ إضافة جولة (Set)</button>
+            <div style="display:flex; gap:10px;">
+                <button onclick="saveWorkoutLog()" class="btn-action" style="flex:1;">حفظ وإتمام</button>
+                <button onclick="closeModal()" class="btn-secondary" style="flex:1;">إلغاء</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
