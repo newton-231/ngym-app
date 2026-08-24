@@ -1,14 +1,18 @@
 // ============================================================
-// NGym - التطبيق الكامل (محدث لاستدعاء صور الـ GIF عبر CDN مباشر)
+// NGym - التطبيق الكامل (معالجة مشكلة عرض التمارين والصور)
 // ============================================================
 
-// مصفوفة التمارين الافتراضية
+// مصفوفة التمارين المضمنة لضمان الظهور الفوري
 const MOCK_EXERCISES = [
-    { id: '0001', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only' },
-    { id: '0002', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only' },
-    { id: '0003', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine' },
-    { id: '0004', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other' },
-    { id: '0005', name: 'Adductor Stretch', muscle: 'adductors', equipment: 'body only' }
+    { id: '0001', name: '3/4 Sit-Up', muscle: 'abdominals', equipment: 'body weight' },
+    { id: '0002', name: '45° Leg Press', muscle: 'quadriceps', equipment: 'leverage machine' },
+    { id: '0003', name: 'Air Bike', muscle: 'abdominals', equipment: 'body weight' },
+    { id: '0006', name: 'Alternate Heel Touchers', muscle: 'abdominals', equipment: 'body weight' },
+    { id: '0007', name: 'Alternate Incline Dumbbell Curl', muscle: 'biceps', equipment: 'dumbbell' },
+    { id: '0015', name: 'Axle Deadlift', muscle: 'glutes', equipment: 'barbell' },
+    { id: '0025', name: 'Barbell Bench Press', muscle: 'chest', equipment: 'barbell' },
+    { id: '0030', name: 'Barbell Curl', muscle: 'biceps', equipment: 'barbell' },
+    { id: '0043', name: 'Barbell Squat', muscle: 'quadriceps', equipment: 'barbell' }
 ];
 
 let exerciseDB = [...MOCK_EXERCISES];
@@ -18,14 +22,17 @@ let currentFilter = 'all';
 // 1. التهيئة والتحميل عند فتح التطبيق
 // ============================================================
 document.addEventListener('DOMContentLoaded', async function() {
-    document.getElementById('loading-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
+    const loadingScreen = document.getElementById('loading-screen');
+    const appScreen = document.getElementById('app');
+    
+    if (loadingScreen) loadingScreen.style.display = 'none';
+    if (appScreen) appScreen.style.display = 'block';
 
     loadUserData();
     loadChatHistory();
     loadRoutines();
 
-    // محاولة تحميل التمارين من ملف exercises.json إذا توفر
+    // محاولة تحميل ملف البيانات الإضافي إن وجد
     await loadFullExercisesDatabase();
 
     updateUI();
@@ -48,12 +55,12 @@ async function loadFullExercisesDatabase() {
             }
         }
     } catch (e) {
-        console.log('سيتم استخدام قائمة التمارين الافتراضية المضمنة.');
+        console.log('سيتم استخدام قائمة التمارين المضمنة.');
     }
 }
 
 // ============================================================
-// 2. إدارة البيانات المحلية وتصفير اليوم الجديد
+// 2. إدارة البيانات المحلية
 // ============================================================
 function loadUserData() {
     if (!localStorage.getItem('userWeight')) localStorage.setItem('userWeight', '70');
@@ -156,33 +163,33 @@ function updateBodygraph() {
 }
 
 // ============================================================
-// 5. نظام عرض التمارين (مربوط بروابط CDN مباشرة لصور GIF)
+// 5. نظام عرض التمارين (مصحح بالكامل مع CDN مباشر للصور)
 // ============================================================
 function renderWorkouts() {
     let filtered = [...exerciseDB];
+    
     if (currentFilter === 'favorites') {
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-        filtered = filtered.filter(ex => favs.includes(ex.id));
+        filtered = filtered.filter(ex => favs.includes(String(ex.id)));
     } else if (currentFilter === 'home') {
-        filtered = filtered.filter(ex => ex.equipment && ex.equipment.includes('body'));
+        filtered = filtered.filter(ex => ex.equipment && ex.equipment.toLowerCase().includes('body'));
     } else if (currentFilter !== 'all') {
-        filtered = filtered.filter(ex => ex.muscle && ex.muscle.includes(currentFilter));
+        filtered = filtered.filter(ex => ex.muscle && ex.muscle.toLowerCase().includes(currentFilter.toLowerCase()));
     }
 
     const container = document.getElementById('workout-list');
     if (!container) return;
 
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="text-center text-slate-500 py-8 text-sm">لا توجد تمارين مطابقة</div>';
+        container.innerHTML = '<div class="text-center text-slate-500 py-8 text-sm">لا توجد تمارين مطابقة للتصنيف</div>';
         return;
     }
 
     container.innerHTML = filtered.map(ex => {
-        // تجهيز معرف التمرير بالشكل 0001 ليوافق روابط الـ CDN المجانية
         const formattedId = String(ex.id).padStart(4, '0');
         
-        // استدعاء الصورة عبر CDN مباشر مفتوح المصدر بدون رفع ملفات محلياً
-        const imgPath = ex.gifUrl || `https://raw.githubusercontent.com/yuhasbs/exercise-assets/main/gifs/${formattedId}.gif`;
+        // رابط GIF مباشر من سيرفر jsDelivr المفتوح
+        const imgPath = ex.gifUrl || `https://cdn.jsdelivr.net/gh/yuhasbs/exercise-assets@main/gifs/${formattedId}.gif`;
         
         return `
         <div class="workout-card bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 mb-3">
@@ -199,7 +206,7 @@ function renderWorkouts() {
                      loading="lazy" 
                      alt="${ex.name}" 
                      class="h-full w-full object-contain" 
-                     onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/yuhasbs/exercise-assets/main/gifs/0001.gif';" />
+                     onerror="this.onerror=null; this.src='https://fitvids.s3.amazonaws.com/gifs/0001.gif';" />
             </div>
 
             <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-700/50">
@@ -221,13 +228,14 @@ function renderWorkouts() {
 
 function isFavorite(id) {
     const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-    return favs.includes(id);
+    return favs.includes(String(id));
 }
 
 function toggleFavorite(id) {
     let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-    if (favs.includes(id)) favs = favs.filter(f => f !== id);
-    else favs.push(id);
+    const strId = String(id);
+    if (favs.includes(strId)) favs = favs.filter(f => f !== strId);
+    else favs.push(strId);
     localStorage.setItem('favorites', JSON.stringify(favs));
 }
 
@@ -238,7 +246,7 @@ let currentExerciseId = null;
 
 function openSetModal(exerciseId) {
     currentExerciseId = exerciseId;
-    const ex = exerciseDB.find(e => e.id === exerciseId);
+    const ex = exerciseDB.find(e => String(e.id) === String(exerciseId));
     if (document.getElementById('set-exercise-name')) document.getElementById('set-exercise-name').textContent = ex ? ex.name : 'تمرين';
     document.getElementById('set-modal')?.classList.remove('hidden');
 }
@@ -408,7 +416,7 @@ function setupTabSwitching() {
 }
 
 // ============================================================
-// 10. الصوت الحقيقي ورفع الصور
+// 10. الصوت ورفع الصور
 // ============================================================
 function setupEventListeners() {
     document.getElementById('save-set-btn')?.addEventListener('click', saveSet);
