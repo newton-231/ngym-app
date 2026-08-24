@@ -1,14 +1,44 @@
 // ============================================================
-// NGym - التطبيق الكامل (محدث بالصوت الحقيقي وصور GIF للتمارين)
+// NGym - التطبيق الكامل (محدث بالروابط المباشرة لصور التمارين)
 // ============================================================
 
-// قائمة التمارين الافتراضية مع صور GIF شغالة وموثوقة
+// قائمة التمارين الافتراضية مع روابط GIF متحركة ومباشرة
 const MOCK_EXERCISES = [
-    { id: '1', name: 'Sit-Up 3/4', muscle: 'abdominals', equipment: 'body only', gifUrl: 'https://raw.githubusercontent.com/yuhasf/exercise-assets/main/gifs/0001.gif' },
-    { id: '2', name: 'Hamstring 90/90', muscle: 'hamstrings', equipment: 'body only', gifUrl: 'https://raw.githubusercontent.com/yuhasf/exercise-assets/main/gifs/0002.gif' },
-    { id: '3', name: 'Ab Crunch Machine', muscle: 'abdominals', equipment: 'machine', gifUrl: 'https://raw.githubusercontent.com/yuhasf/exercise-assets/main/gifs/0003.gif' },
-    { id: '4', name: 'Ab Roller', muscle: 'abdominals', equipment: 'other', gifUrl: 'https://raw.githubusercontent.com/yuhasf/exercise-assets/main/gifs/0004.gif' },
-    { id: '5', name: 'Adductor Stretch', muscle: 'adductors', equipment: 'body only', gifUrl: 'https://raw.githubusercontent.com/yuhasf/exercise-assets/main/gifs/0005.gif' }
+    { 
+        id: '1', 
+        name: 'Sit-Up 3/4', 
+        muscle: 'abdominals', 
+        equipment: 'body only', 
+        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Sit-Up.gif' 
+    },
+    { 
+        id: '2', 
+        name: 'Hamstring 90/90', 
+        muscle: 'hamstrings', 
+        equipment: 'body only', 
+        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/90-90-Hamstring-Stretch.gif' 
+    },
+    { 
+        id: '3', 
+        name: 'Ab Crunch Machine', 
+        muscle: 'abdominals', 
+        equipment: 'machine', 
+        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Lever-Seated-Crunch.gif' 
+    },
+    { 
+        id: '4', 
+        name: 'Ab Roller', 
+        muscle: 'abdominals', 
+        equipment: 'other', 
+        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/02/Ab-Wheel-Rollout.gif' 
+    },
+    { 
+        id: '5', 
+        name: 'Adductor Stretch', 
+        muscle: 'adductors', 
+        equipment: 'body only', 
+        gifUrl: 'https://fitnessprogramer.com/wp-content/uploads/2021/06/Seated-Adductor-Stretch.gif' 
+    }
 ];
 
 let exerciseDB = [...MOCK_EXERCISES];
@@ -98,10 +128,10 @@ function updateUI() {
     const burned = parseInt(localStorage.getItem('burnedCalories')) || 0;
 
     const remaining = Math.max(target.calories - eaten.calories + burned, 0);
-    document.getElementById('calories-left').textContent = remaining;
-    document.getElementById('target-cal').textContent = target.calories;
-    document.getElementById('eaten-cal').textContent = eaten.calories;
-    document.getElementById('burned-cal').textContent = burned;
+    if (document.getElementById('calories-left')) document.getElementById('calories-left').textContent = remaining;
+    if (document.getElementById('target-cal')) document.getElementById('target-cal').textContent = target.calories;
+    if (document.getElementById('eaten-cal')) document.getElementById('eaten-cal').textContent = eaten.calories;
+    if (document.getElementById('burned-cal')) document.getElementById('burned-cal').textContent = burned;
 
     const ring = document.getElementById('calories-ring');
     if (ring) {
@@ -177,9 +207,7 @@ function renderWorkouts() {
         return;
     }
 
-    container.innerHTML = filtered.map(ex => {
-        const imgPath = ex.gifUrl || (ex.id ? `https://raw.githubusercontent.com/yuhasf/exercise-assets/main/gifs/${String(ex.id).padStart(4, '0')}.gif` : '');
-        return `
+    container.innerHTML = filtered.map(ex => `
         <div class="workout-card bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 mb-3">
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1 pl-2">
@@ -189,8 +217,8 @@ function renderWorkouts() {
                 <button class="favorite-btn text-lg ${isFavorite(ex.id) ? 'text-amber-400' : 'text-slate-600'}" data-id="${ex.id}">⭐</button>
             </div>
             
-            <div class="w-full h-44 my-2 rounded-lg overflow-hidden bg-slate-900 border border-slate-700/50 flex justify-center items-center">
-                <img src="${imgPath}" 
+            <div class="w-full h-48 my-2 rounded-lg overflow-hidden bg-slate-900 border border-slate-700/50 flex justify-center items-center">
+                <img src="${ex.gifUrl}" 
                      loading="lazy" 
                      alt="${ex.name}" 
                      class="h-full w-full object-contain" 
@@ -201,7 +229,7 @@ function renderWorkouts() {
                 <button class="start-workout-btn btn-primary text-xs py-2 px-4 w-full bg-green-500 text-slate-950 font-bold rounded-lg" data-id="${ex.id}">ابدأ التمرين</button>
             </div>
         </div>
-    `}).join('');
+    `).join('');
 
     document.querySelectorAll('.start-workout-btn').forEach(btn => {
         btn.addEventListener('click', function() { openSetModal(this.dataset.id); });
@@ -234,12 +262,12 @@ let currentExerciseId = null;
 function openSetModal(exerciseId) {
     currentExerciseId = exerciseId;
     const ex = exerciseDB.find(e => e.id === exerciseId);
-    document.getElementById('set-exercise-name').textContent = ex ? ex.name : 'تمرين';
-    document.getElementById('set-modal').classList.remove('hidden');
+    if (document.getElementById('set-exercise-name')) document.getElementById('set-exercise-name').textContent = ex ? ex.name : 'تمرين';
+    document.getElementById('set-modal')?.classList.remove('hidden');
 }
 
 function closeSetModal() {
-    document.getElementById('set-modal').classList.add('hidden');
+    document.getElementById('set-modal')?.classList.add('hidden');
     currentExerciseId = null;
 }
 
@@ -331,7 +359,7 @@ function setupAdminPanel() {
         adminClickCount++;
         if (adminClickCount === 5) {
             adminClickCount = 0;
-            document.getElementById('admin-modal').classList.remove('hidden');
+            document.getElementById('admin-modal')?.classList.remove('hidden');
         }
         setTimeout(() => { adminClickCount = 0; }, 3000);
     });
@@ -339,7 +367,7 @@ function setupAdminPanel() {
     document.getElementById('admin-login-btn')?.addEventListener('click', function() {
         const pass = document.getElementById('admin-password').value;
         if (pass === (localStorage.getItem('admin_password') || 'NGYM2026')) {
-            document.getElementById('admin-panel-content').classList.remove('hidden');
+            document.getElementById('admin-panel-content')?.classList.remove('hidden');
             renderCodes();
         } else {
             alert('كلمة المرور غير صحيحة');
@@ -357,7 +385,7 @@ function setupAdminPanel() {
     });
 
     document.getElementById('close-admin-modal')?.addEventListener('click', function() {
-        document.getElementById('admin-modal').classList.add('hidden');
+        document.getElementById('admin-modal')?.classList.add('hidden');
     });
 }
 
