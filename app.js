@@ -1,6 +1,6 @@
 // ==================================================
 // NGym - التطبيق الذكي بالكامل (JavaScript)
-// الإصدار النهائي المتكامل - جميع التعديلات المطلوبة
+// الإصدار النهائي المتكامل - مع دعم الصور الذكي
 // ==================================================
 
 // ---- 1. البيانات الثابتة والقيم الافتراضية ----
@@ -10,9 +10,9 @@ const DEFAULT_USER_DATA = {
 };
 
 const FALLBACK_WORKOUTS = [
-    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'Chest', location: 'home', gif_url: '/assets/gifs/default.gif' },
-    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'Legs', location: 'home', gif_url: '/assets/gifs/default.gif' },
-    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'Core', location: 'home', gif_url: '/assets/gifs/default.gif' }
+    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'Chest', location: 'home', met: 3.8 },
+    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'Legs', location: 'home', met: 5 },
+    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'Core', location: 'home', met: 4 }
 ];
 
 let exerciseDatabase = [];
@@ -179,7 +179,26 @@ async function loadExerciseDatabase() {
     }
 }
 
-// ---- 6. التمارين (عرض، تصفية، مفضلة) ----
+// ---- 6. دالة جلب مسار الـ GIF الذكي ----
+function getExerciseGifUrl(exercise) {
+    // إذا كان للملف مسار معرف مسبقاً استخدمه
+    if (exercise.gif_url) return exercise.gif_url;
+
+    // استخراج رقم المجلد من الـ id (مثلاً أول رقمين)
+    let folder = '1'; // افتراضي
+    if (exercise.id && exercise.id.length >= 4) {
+        // يمكن استخدام أول رقمين من الـ id لتحديد المجلد
+        const firstTwo = exercise.id.substring(0, 2);
+        if (!isNaN(firstTwo) && parseInt(firstTwo) >= 1 && parseInt(firstTwo) <= 9) {
+            folder = firstTwo;
+        }
+    }
+
+    // بناء المسار المباشر لصورة الـ GIF
+    return `assets/gifs/${folder}/${exercise.id}.gif`;
+}
+
+// ---- 7. التمارين (عرض، تصفية، مفضلة) ----
 function toggleFavorite(id) {
     let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
     if (favs.includes(id)) favs = favs.filter(f => f !== id);
@@ -227,13 +246,17 @@ function renderWorkoutsList() {
 
     container.innerHTML = filtered.map(ex => {
         const isFav = JSON.parse(localStorage.getItem('favorites') || '[]').includes(ex.id);
-        const gifPath = ex.gif_url || '/assets/gifs/default.gif';
+        const gifPath = getExerciseGifUrl(ex);
         const displayName = ex.name_ar || ex.name || 'تمرين';
         const muscle = ex.target_muscle || '';
+        
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm workout-card">
             <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0">
-                <img src="${gifPath}" alt="${displayName}" class="w-full h-full object-cover" onerror="this.src='/assets/gifs/default.gif'">
+                <img src="${gifPath}" 
+                     alt="${displayName}" 
+                     class="w-full h-full object-cover" 
+                     onerror="this.onerror=null; this.src='assets/gifs/default.gif';">
             </div>
             <div class="flex-1 min-w-0">
                 <h4 class="text-xs font-bold text-slate-200 truncate">${displayName}</h4>
@@ -243,7 +266,7 @@ function renderWorkoutsList() {
                 <button onclick="toggleFavorite('${ex.id}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} hover:text-yellow-400 transition text-sm">
                     <i class="fa-solid fa-star"></i>
                 </button>
-                <button onclick="openExerciseModal('${ex.id}', '${displayName}', '${muscle}', 5)" class="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded-xl text-[10px] font-semibold transition">
+                <button onclick="openExerciseModal('${ex.id}', '${displayName}', '${muscle}', ${ex.met || 5})" class="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded-xl text-[10px] font-semibold transition">
                     تسجيل
                 </button>
             </div>
@@ -251,14 +274,14 @@ function renderWorkoutsList() {
     `}).join('');
 }
 
-// ---- 7. نافذة تسجيل التمرين (معدلة لحساب السعرات) ----
+// ---- 8. نافذة تسجيل التمرين ----
 function openExerciseModal(id, name, muscle, met) {
     currentExercise = { id, name, muscle, met };
     document.getElementById('exercise-name').value = name;
     document.getElementById('exercise-modal').classList.remove('hidden');
 }
 
-// ---- 8. المدرب الذكي والمحادثة (بدون مفتاح مكشوف) ----
+// ---- 9. المدرب الذكي والمحادثة ----
 function buildSystemPrompt() {
     const u = getUserData();
     const targets = calculateNutritionTargets();
@@ -320,14 +343,15 @@ function generateLocalAIResponse(prompt) {
         return p.includes(name) || p.includes(muscle);
     });
 
-    if (workout && workout.gif_url) {
-        return `🔍 تمرين ${workout.name_ar || workout.name}: ${workout.target_muscle || ''}\n\n<img src="${workout.gif_url}" class="max-w-full rounded-lg mt-2 border border-slate-700" onerror="this.style.display='none'"/>`;
+    if (workout) {
+        const gifPath = getExerciseGifUrl(workout);
+        return `🔍 تمرين ${workout.name_ar || workout.name}: ${workout.target_muscle || ''}\n\n<img src="${gifPath}" class="max-w-full rounded-lg mt-2 border border-slate-700" onerror="this.style.display='none'"/>`;
     }
 
     if (p.includes('وجبة') || p.includes('أكل') || p.includes('غداء') || p.includes('عشاء')) {
         return `بناءً على هدفك، أنصحك بوجبة غنية بالبروتين تحتوي على ${Math.round(targets.protein / 3)}g بروتين (مثل 200g صدور دجاج متبلة + 150g أرز مسلوق). 🍗`;
     }
-    if (p.includes('بروتين') || p.includes('احتياج')) {
+    if (p.includes('بروتין') || p.includes('احتياج')) {
         return `احتياجك اليومي الموصى به هو ${targets.protein} جرام بروتين لضمان الاستشفاء العضلي. 💪`;
     }
     if (p.includes('تمرين') || p.includes('جدول') || p.includes('عضل')) {
@@ -362,7 +386,7 @@ async function callGeminiAIThroughServer(prompt, base64Img = null) {
     }
 }
 
-// ---- 9. نظام قائمة انتظار الرسائل (Offline) ----
+// ---- 10. نظام قائمة انتظار الرسائل (Offline) ----
 function addToPendingQueue(messageText, imageBase64 = null) {
     const pending = JSON.parse(localStorage.getItem('pendingMessages') || '[]');
     pending.push({
@@ -460,7 +484,7 @@ async function retryPendingMessages() {
     }
 }
 
-// ---- 10. دالة إرسال الرسالة الرئيسية (مع التحقق من الاشتراك) ----
+// ---- 11. دالة إرسال الرسالة الرئيسية ----
 async function handleSendMessage() {
     // التحقق من صلاحية الاشتراك
     const status = checkSubscriptionStatus();
@@ -545,7 +569,7 @@ async function handleSendMessage() {
     }
 }
 
-// ---- 11. الصوت والصورة ----
+// ---- 12. الصوت والصورة ----
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (file) {
@@ -588,7 +612,7 @@ function toggleVoiceRecognition() {
     recognition.start();
 }
 
-// ---- 12. نظام التنبيهات (مع توحيد حالة الأحرف) ----
+// ---- 13. نظام التنبيهات ----
 function loadReminderSettings() {
     const settings = JSON.parse(localStorage.getItem('reminderSettings') || '{}');
     if (settings.days) {
@@ -764,7 +788,7 @@ function requestNotificationPermission() {
     }
 }
 
-// ---- 13. نظام الاشتراكات ----
+// ---- 14. نظام الاشتراكات ----
 function checkSubscriptionStatus() {
     const endDate = localStorage.getItem('subscriptionEndDate');
     if (!endDate) return 'no_subscription';
@@ -816,7 +840,7 @@ function renewSubscription(months) {
     alert(`✅ تم التجديد بنجاح حتى ${newEnd.toLocaleDateString()}`);
 }
 
-// ---- 14. لوحة المشرف ----
+// ---- 15. لوحة المشرف ----
 function setupAdminPanel() {
     document.getElementById('app-logo')?.addEventListener('click', function() {
         logoClickCount++;
@@ -905,7 +929,7 @@ function loadAdminUsers() {
     `).join('');
 }
 
-// ---- 15. التنقل بين التبويبات والنوافذ ----
+// ---- 16. التنقل بين التبويبات والنوافذ ----
 function switchTab(tabName) {
     ['dashboard', 'workouts', 'coach', 'reminders'].forEach(t => {
         document.getElementById(`sec-${t}`)?.classList.add('hidden');
@@ -936,7 +960,7 @@ function closeModal(id) {
     document.getElementById(id)?.classList.add('hidden');
 }
 
-// ---- 16. التهيئة والتشغيل ----
+// ---- 17. التهيئة والتشغيل ----
 document.addEventListener('DOMContentLoaded', function () {
     checkDailyReset();
     updateDashboardUI();
