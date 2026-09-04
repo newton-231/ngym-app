@@ -26,8 +26,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script>
-        // بيانات التكوين الحقيقية الخاصة بمشروعك ngym-app
-        // ⚠️ تحذير أمني: استخدم متغيرات البيئة في الإنتاج!
         const firebaseConfig = {
             apiKey: "AIzaSyD02GDPL_7n8gMsJH2I14ULAiXGbui98Xw",
             authDomain: "ngym-app.firebaseapp.com",
@@ -37,7 +35,6 @@
             appId: "1:164878128898:web:bf9ec9369891ea5af09b83"
         };
 
-        // تهيئة Firebase وقاعدة البيانات Firestore
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         console.log("✅ Firebase initialized successfully!");
@@ -86,13 +83,6 @@
         .ring-progress {
             transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .workout-card {
-            transition: all 0.2s ease;
-        }
-        .workout-card:hover {
-            border-color: #10b981;
-            transform: translateY(-2px);
-        }
         .day-btn.active {
             background: #10b981 !important;
             color: #0f172a !important;
@@ -102,14 +92,9 @@
             background: rgba(16, 185, 129, 0.15);
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
-        .subscription-expired {
-            background: rgba(239, 68, 68, 0.15);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        }
         .tab-content { display: block; }
-        .tab-content.hidden-tab { display: none; }
+        .tab-content.hidden-tab { display: none !important; }
         .nav-btn { cursor: pointer; user-select: none; }
-        .nav-btn:hover { color: #e2e8f0; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen pb-24">
@@ -152,18 +137,13 @@
             </button>
         </div>
 
-        <!-- ================================================================ -->
-        <!-- تبويب الرئيسية (sec-dashboard) -->
-        <!-- ================================================================ -->
+        <!-- تبويب الرئيسية -->
         <section id="sec-dashboard" class="tab-content space-y-5">
-            
-            <!-- حالة الاشتراك -->
             <div id="subscription-banner" class="bg-slate-800 border border-slate-700 rounded-2xl p-3 text-center text-xs subscription-badge">
                 <span id="subscription-status">⏳ جاري التحميل...</span>
                 <button id="renew-btn" class="hidden bg-emerald-600 text-slate-950 px-3 py-1 rounded-lg font-bold text-xs ml-2">تجديد الاشتراك</button>
             </div>
 
-            <!-- بطاقة المستوى والرتبة -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex justify-between items-center shadow-sm">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800/50 flex items-center justify-center text-emerald-400 text-lg">
@@ -179,7 +159,6 @@
                 </div>
             </div>
 
-            <!-- دائرة السعرات -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden text-center shadow-sm">
                 <div class="relative w-44 h-44 mx-auto flex items-center justify-center">
                     <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
@@ -208,7 +187,6 @@
                 </div>
             </div>
 
-            <!-- أشرطة المغذيات -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
                 <h4 class="text-xs font-bold text-slate-300 flex items-center justify-between">
                     <span>توزيع المغذيات اليومية (Macros)</span>
@@ -265,18 +243,15 @@
             </div>
         </section>
 
-        <!-- ================================================================ -->
-        <!-- تبويب التمارين (sec-workouts) -->
-        <!-- ================================================================ -->
+        <!-- تبويب التمارين -->
         <section id="sec-workouts" class="tab-content hidden-tab space-y-4">
             <div class="flex justify-between items-center px-1">
                 <h3 class="text-sm font-bold text-slate-200">مكتبة التمارين الرياضية</h3>
                 <span class="text-[11px] text-slate-400">اختر التمرين وسجل جولاتك</span>
             </div>
 
-            <!-- أزرار التصفية -->
             <div class="flex gap-2 overflow-x-auto pb-2" id="filter-tabs">
-                <button data-filter="all" onclick="filterWorkouts('all')" class="filter-btn active-filter bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-semibold">الكل</button>
+                <button data-filter="all" onclick="filterWorkouts('all')" class="filter-btn active-filter bg-emerald-500 text-slate-950 px-3 py-1 rounded-full text-xs font-semibold">الكل</button>
                 <button data-filter="home" onclick="filterWorkouts('home')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🏠 منزل</button>
                 <button data-filter="gym" onclick="filterWorkouts('gym')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🏋️ نادي</button>
                 <button data-filter="chest" onclick="filterWorkouts('chest')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">صدر</button>
@@ -287,45 +262,36 @@
                 <button data-filter="favorites" onclick="filterWorkouts('favorites')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">⭐ مفضلة</button>
             </div>
 
-            <!-- قائمة التمارين -->
-            <div class="space-y-3" id="workouts-list">
-                <!-- يتم تعبئتها بواسطة JavaScript -->
-            </div>
+            <div class="space-y-3" id="workouts-list"></div>
         </section>
 
-        <!-- ================================================================ -->
-        <!-- تبويب المدرب الذكي (sec-coach) -->
-        <!-- ================================================================ -->
+        <!-- تبويب المدرب الذكي -->
         <section id="sec-coach" class="tab-content hidden-tab space-y-3 flex flex-col h-[calc(100vh-180px)]">
             <div id="pending-status" class="mb-2"></div>
             
-            <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 p-1 text-xs">
-                <!-- المحادثات تظهر هنا -->
-            </div>
+            <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 p-1 text-xs"></div>
 
             <div id="image-preview-container" class="hidden relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 shadow-md">
                 <img id="image-preview" src="" class="w-full h-full object-cover">
-                <button id="remove-image-btn" onclick="clearChatImage()" class="absolute top-0 right-0 bg-red-600 text-white w-5 h-5 rounded-bl flex items-center justify-center text-xs font-bold">×</button>
+                <button id="remove-image-btn" class="absolute top-0 right-0 bg-red-600 text-white w-5 h-5 rounded-bl flex items-center justify-center text-xs font-bold">×</button>
             </div>
 
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2 flex items-center gap-2 shadow-lg">
                 <label class="cursor-pointer text-slate-400 hover:text-emerald-400 p-2 transition" title="ارفق صورة وجبة">
                     <i class="fa-solid fa-camera text-base"></i>
-                    <input type="file" id="chat-file-input" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                    <input type="file" id="chat-file-input" accept="image/*" class="hidden">
                 </label>
-                <button id="mic-btn" onclick="toggleVoiceRecognition()" class="text-slate-400 hover:text-emerald-400 p-1.5 transition" title="التسجيل الصوتي">
+                <button id="mic-btn" class="text-slate-400 hover:text-emerald-400 p-1.5 transition" title="التسجيل الصوتي">
                     <i class="fa-solid fa-microphone text-base"></i>
                 </button>
                 <input type="text" id="chat-input" placeholder="اسأل المدرب أو حلل وجبتك..." class="flex-1 bg-transparent border-none text-xs text-slate-100 focus:outline-none placeholder-slate-500 px-1">
-                <button id="send-chat-btn" onclick="sendChatMessage()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold w-9 h-9 rounded-xl flex items-center justify-center transition shadow-md shadow-emerald-600/20">
+                <button id="send-chat-btn" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold w-9 h-9 rounded-xl flex items-center justify-center transition shadow-md shadow-emerald-600/20">
                     <i class="fa-solid fa-arrow-up"></i>
                 </button>
             </div>
         </section>
 
-        <!-- ================================================================ -->
-        <!-- تبويب التنبيهات (sec-reminders) -->
-        <!-- ================================================================ -->
+        <!-- تبويب التنبيهات -->
         <section id="sec-reminders" class="tab-content hidden-tab space-y-5">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
                 <h3 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
@@ -338,13 +304,13 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-2">أيام التمرين:</label>
                     <div class="flex flex-wrap gap-2" id="days-selector">
-                        <button onclick="toggleDay('sunday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">أحد</button>
-                        <button onclick="toggleDay('monday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">إثنين</button>
-                        <button onclick="toggleDay('tuesday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">ثلاثاء</button>
-                        <button onclick="toggleDay('wednesday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">أربعاء</button>
-                        <button onclick="toggleDay('thursday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">خميس</button>
-                        <button onclick="toggleDay('friday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">جمعة</button>
-                        <button onclick="toggleDay('saturday')" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">سبت</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">أحد</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">إثنين</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">ثلاثاء</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">أربعاء</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">خميس</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">جمعة</button>
+                        <button onclick="toggleDay(this)" class="day-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition">سبت</button>
                     </div>
                 </div>
 
@@ -367,24 +333,12 @@
                     التنبيهات غير مفعلة
                 </div>
             </div>
-
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
-                <h4 class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                    <i class="fa-solid fa-clock-rotate-left"></i> آخر التنبيهات
-                </h4>
-                <div id="reminder-log" class="mt-2 space-y-1 text-[11px] text-slate-400 max-h-32 overflow-y-auto">
-                    لا توجد تنبيهات سابقة.
-                </div>
-            </div>
         </section>
 
     </main>
 
-    <!-- ================================================================ -->
-    <!-- النوافذ المنبثقة (Modals) -->
-    <!-- ================================================================ -->
-
-    <!-- 1. تعديل البيانات الشخصية (Onboarding) -->
+    <!-- النوافذ المنبثقة -->
+    <!-- 1. تعديل البيانات الشخصية -->
     <div id="onboarding-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -454,15 +408,14 @@
                 <div>
                     <label class="block text-slate-400 mb-1">اسم التمرين</label>
                     <input type="text" id="exercise-name" readonly class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 font-medium">
-                    <input type="hidden" id="exercise-category">
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="block text-slate-400 mb-1">عدد الجولات (Sets)</label>
+                        <label class="block text-slate-400 mb-1">عدد الجولات</label>
                         <input type="number" id="exercise-sets" value="3" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 font-mono">
                     </div>
                     <div>
-                        <label class="block text-slate-400 mb-1">التكرارات (Reps)</label>
+                        <label class="block text-slate-400 mb-1">التكرارات</label>
                         <input type="number" id="exercise-reps" value="12" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 font-mono">
                     </div>
                 </div>
@@ -483,7 +436,7 @@
         </div>
     </div>
 
-    <!-- 4. لوحة المشرف (Admin Panel) -->
+    <!-- 4. لوحة المشرف -->
     <div id="admin-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -503,14 +456,17 @@
             
             <div id="admin-dashboard-section" class="hidden space-y-3">
                 <p class="text-xs text-emerald-400 font-semibold">مرحباً بك في لوحة التحكم الإدارية</p>
-                <!-- عناصر التحكم الخاصة بالمشرف تضاف هنا -->
+                <div class="flex gap-2">
+                    <input type="number" id="code-duration" value="30" placeholder="الأيام" class="w-20 bg-slate-800 border border-slate-700 rounded-xl p-1.5 text-xs text-center">
+                    <button id="generate-code-btn" class="flex-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold">
+                        توليد كود
+                    </button>
+                </div>
+                <div id="codes-list" class="max-h-40 overflow-y-auto space-y-1"></div>
             </div>
         </div>
     </div>
 
-    <!-- ================================================================ -->
-    <!-- تحميل ملف التطبيق الخارجي (app.js) -->
-    <!-- ================================================================ -->
     <script src="app.js"></script>
 </body>
 </html>
