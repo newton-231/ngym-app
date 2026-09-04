@@ -1,6 +1,6 @@
 // ==================================================
 // NGym - التطبيق الذكي بالكامل (JavaScript)
-// الإصدار النهائي المتكامل - مع دعم الصور الذكي
+// الإصدار النهائي المتكامل مع Firebase
 // ==================================================
 
 // ---- 1. البيانات الثابتة والقيم الافتراضية ----
@@ -22,6 +22,7 @@ let currentExercise = null;
 let reminderInterval = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
+let db = null; // متغير Firebase
 
 // ---- 2. إدارة التخزين المحلي ----
 function getUserData() {
@@ -181,20 +182,8 @@ async function loadExerciseDatabase() {
 
 // ---- 6. دالة جلب مسار الـ GIF الذكي ----
 function getExerciseGifUrl(exercise) {
-    // إذا كان للملف مسار معرف مسبقاً استخدمه
     if (exercise.gif_url) return exercise.gif_url;
-
-    // استخراج رقم المجلد من الـ id (مثلاً أول رقمين)
-    let folder = '1'; // افتراضي
-    if (exercise.id && exercise.id.length >= 4) {
-        // يمكن استخدام أول رقمين من الـ id لتحديد المجلد
-        const firstTwo = exercise.id.substring(0, 2);
-        if (!isNaN(firstTwo) && parseInt(firstTwo) >= 1 && parseInt(firstTwo) <= 9) {
-            folder = firstTwo;
-        }
-    }
-
-    // بناء المسار المباشر لصورة الـ GIF
+    const folder = '1';
     return `assets/gifs/${folder}/${exercise.id}.gif`;
 }
 
@@ -249,14 +238,10 @@ function renderWorkoutsList() {
         const gifPath = getExerciseGifUrl(ex);
         const displayName = ex.name_ar || ex.name || 'تمرين';
         const muscle = ex.target_muscle || '';
-        
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm workout-card">
             <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0">
-                <img src="${gifPath}" 
-                     alt="${displayName}" 
-                     class="w-full h-full object-cover" 
-                     onerror="this.onerror=null; this.src='assets/gifs/default.gif';">
+                <img src="${gifPath}" alt="${displayName}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/gifs/default.gif';">
             </div>
             <div class="flex-1 min-w-0">
                 <h4 class="text-xs font-bold text-slate-200 truncate">${displayName}</h4>
@@ -289,47 +274,8 @@ function buildSystemPrompt() {
 بيانات المستخدم:
 • الوزن: ${u.weight} كجم | الهدف: ${u.targetWeight} كجم
 • السعرات المستهدفة: ${targets.calories} Kcal | بروتين: ${targets.protein}g.
-أجب باختصار وتركيز بدون مقدمات.`;
-}
 
-function saveChatMessage(sender, text) {
-    let history = JSON.parse(localStorage.getItem('chatHistory')) || [];
-    history.push({ sender, text });
-    if (history.length > 50) history = history.slice(-50);
-    localStorage.setItem('chatHistory', JSON.stringify(history));
-}
-
-function loadChatHistory() {
-    const history = JSON.parse(localStorage.getItem('chatHistory')) || [];
-    const container = document.getElementById('chat-messages');
-    if (!container) return;
-    container.innerHTML = '';
-    if (history.length === 0) {
-        renderChatMessage('assistant', 'مرحباً بك في NGym! 🎯 أنا مدربك الذكي. كيف يمكنني مساعدتك اليوم؟');
-    } else {
-        history.forEach(msg => renderChatMessage(msg.sender, msg.text));
-    }
-}
-
-function renderChatMessage(sender, text) {
-    const container = document.getElementById('chat-messages');
-    if (!container) return;
-    const id = 'msg-' + Date.now();
-    const isUser = sender === 'user';
-    container.insertAdjacentHTML('beforeend', `
-        <div id="${id}" class="flex ${isUser ? 'justify-end' : 'justify-start'} mb-2 chat-message">
-            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-xs leading-relaxed shadow-sm">
-                ${text}
-            </div>
-        </div>
-    `);
-    container.scrollTop = container.scrollHeight;
-    return id;
-}
-
-function updateChatMessage(id, newText) {
-    const el = document.getElementById(id);
-    if (el) el.querySelector('div').textContent = newText;
+تعليمات: قدم إجابات منظمة باستخدام نقاط وعناوين فرعية، واشرح الخطط بالتفصيل.`;
 }
 
 function generateLocalAIResponse(prompt) {
@@ -345,19 +291,27 @@ function generateLocalAIResponse(prompt) {
 
     if (workout) {
         const gifPath = getExerciseGifUrl(workout);
-        return `🔍 تمرين ${workout.name_ar || workout.name}: ${workout.target_muscle || ''}\n\n<img src="${gifPath}" class="max-w-full rounded-lg mt-2 border border-slate-700" onerror="this.style.display='none'"/>`;
+        return `🔍 **${workout.name_ar || workout.name}**\n- العضلة: ${workout.target_muscle}\n- التصنيف: ${workout.category}\n- MET: ${workout.met}\n\n<img src="${gifPath}" class="max-w-full rounded-lg mt-2 border border-slate-700" onerror="this.style.display='none'"/>`;
     }
 
-    if (p.includes('وجبة') || p.includes('أكل') || p.includes('غداء') || p.includes('عشاء')) {
-        return `بناءً على هدفك، أنصحك بوجبة غنية بالبروتين تحتوي على ${Math.round(targets.protein / 3)}g بروتين (مثل 200g صدور دجاج متبلة + 150g أرز مسلوق). 🍗`;
+    if (p.includes('تمرين اليوم') || p.includes('جدول')) {
+        const workouts = exerciseDatabase.slice(0, 4);
+        let reply = '📋 **جدول تمارين اليوم:**\n\n';
+        workouts.forEach((w, i) => {
+            reply += `**${i+1}. ${w.name_ar || w.name}**\n   - العضلة: ${w.target_muscle}\n   - 3 جولات × 12 تكرار\n\n`;
+        });
+        reply += '💡 اشرب ماءً كافياً وتحكم في الحركة.';
+        return reply;
     }
-    if (p.includes('بروتין') || p.includes('احتياج')) {
-        return `احتياجك اليومي الموصى به هو ${targets.protein} جرام بروتين لضمان الاستشفاء العضلي. 💪`;
+
+    if (p.includes('وجبة') || p.includes('أكل') || p.includes('غداء')) {
+        return `🍗 **وجبة مقترحة:**\nبروتين: ${Math.round(targets.protein / 3)} جم\n• 200 جم دجاج مشوي\n• 150 جم أرز\n• سلطة خضراء`;
     }
-    if (p.includes('تمرين') || p.includes('جدول') || p.includes('عضل')) {
-        return `اليوم فرصة ممتازة للتركيز على التمارين المركبة! استخدم تبويب "التمارين" وسجل 3 جولات ضغط وعقلة لرفع الـ XP الخاص بك اليوم. 🏋️‍♂️`;
+    if (p.includes('بروتين')) {
+        return `💪 احتياجك: ${targets.protein} جم بروتين يومياً.`;
     }
-    return `أهلاً بك يا بطل! أنا معك للمتابعة الوصول لوزن ${u.targetWeight} كجم. هل سجلت تمارينك أو وجباتك اليوم؟ ✨`;
+    
+    return `🎯 مرحباً في NGym! كيف أساعدك اليوم؟ (اسأل عن جدول تمارين، وجبات، أو نصائح)`;
 }
 
 async function callGeminiAIThroughServer(prompt, base64Img = null) {
@@ -423,7 +377,7 @@ function renderPendingStatus() {
     statusEl.innerHTML = `
         <div class="bg-amber-950/30 border border-amber-700/50 rounded-xl p-2 text-xs text-amber-400 flex items-center gap-2">
             <i class="fa-solid fa-spinner fa-spin"></i>
-            ${pending.length} رسالة(رسائل) في انتظار الاتصال بالإنترنت...
+            ${pending.length} رسالة في انتظار الاتصال...
         </div>
     `;
 }
@@ -485,88 +439,44 @@ async function retryPendingMessages() {
 }
 
 // ---- 11. دالة إرسال الرسالة الرئيسية ----
-async function handleSendMessage() {
-    // التحقق من صلاحية الاشتراك
-    const status = checkSubscriptionStatus();
-    if (status === 'expired') {
-        renderChatMessage('assistant', '⛔ انتهت فترة التجربة (30 يوماً). يرجى تجديد اشتراكك للاستمرار في استخدام المدرب الذكي. 🔑');
-        document.getElementById('renew-btn')?.classList.remove('hidden');
-        return;
+function saveChatMessage(sender, text) {
+    let history = JSON.parse(localStorage.getItem('chatHistory')) || [];
+    history.push({ sender, text });
+    if (history.length > 50) history = history.slice(-50);
+    localStorage.setItem('chatHistory', JSON.stringify(history));
+}
+
+function loadChatHistory() {
+    const history = JSON.parse(localStorage.getItem('chatHistory')) || [];
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+    container.innerHTML = '';
+    if (history.length === 0) {
+        renderChatMessage('assistant', '🎯 مرحباً بك في NGym! أنا مدربك الذكي. كيف يمكنني مساعدتك اليوم؟ 💪');
+    } else {
+        history.forEach(msg => renderChatMessage(msg.sender, msg.text));
     }
-    if (status === 'no_subscription') {
-        renderChatMessage('assistant', '🔑 يرجى تفعيل اشتراكك للاستفادة من المدرب الذكي.');
-        document.getElementById('renew-btn')?.classList.remove('hidden');
-        return;
-    }
+}
 
-    const inputEl = document.getElementById('chat-input');
-    const messageText = inputEl.value.trim();
-    if (!messageText && !selectedBase64Image) return;
+function renderChatMessage(sender, text) {
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+    const id = 'msg-' + Date.now();
+    const isUser = sender === 'user';
+    container.insertAdjacentHTML('beforeend', `
+        <div id="${id}" class="flex ${isUser ? 'justify-end' : 'justify-start'} mb-2 chat-message">
+            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-xs leading-relaxed shadow-sm">
+                ${text}
+            </div>
+        </div>
+    `);
+    container.scrollTop = container.scrollHeight;
+    return id;
+}
 
-    const textToSend = messageText || "قم بتحليل الوجبة في هذه الصورة وحساب سعراتها والبروتين بها:";
-    const imageToSend = selectedBase64Image;
-
-    const userMsgId = renderChatMessage('user', textToSend);
-    saveChatMessage('user', textToSend);
-    inputEl.value = '';
-    clearChatImage();
-
-    if (!navigator.onLine) {
-        const pendingId = 'pending-' + Date.now();
-        addToPendingQueue(textToSend, imageToSend);
-
-        const userEl = document.getElementById(userMsgId);
-        if (userEl) {
-            const badge = document.createElement('span');
-            badge.className = 'pending-badge text-amber-400 text-[10px] mr-2';
-            badge.textContent = '⏳ في الانتظار...';
-            userEl.querySelector('div')?.appendChild(badge);
-        }
-
-        const loadingId = renderChatMessage('assistant', '⏳ لا يوجد اتصال بالإنترنت. سيتم إرسال رسالتك تلقائياً عند استعادة الاتصال.');
-        saveChatMessage('assistant', '⏳ سيتم إرسال رسالتك تلقائياً عند استعادة الاتصال.');
-        setTimeout(() => {
-            const el = document.getElementById(loadingId);
-            if (el) el.remove();
-        }, 5000);
-        return;
-    }
-
-    const loadingId = renderChatMessage('assistant', 'جاري التفكير...');
-
-    try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                systemPrompt: buildSystemPrompt(),
-                userPlan: {
-                    user: getUserData(),
-                    targets: calculateNutritionTargets()
-                },
-                history: JSON.parse(localStorage.getItem('chatHistory') || '[]'),
-                userMessage: textToSend,
-                imageBase64: imageToSend || null
-            })
-        });
-
-        if (!response.ok) throw new Error('API Error');
-
-        const data = await response.json();
-        const aiResponse = data.reply || generateLocalAIResponse(textToSend);
-
-        updateChatMessage(loadingId, aiResponse);
-        saveChatMessage('assistant', aiResponse);
-        addXP(10);
-        updateDashboardUI();
-
-    } catch (error) {
-        console.error('فشل الإرسال:', error);
-        const pendingId = 'pending-' + Date.now();
-        addToPendingQueue(textToSend, imageToSend);
-        updateChatMessage(loadingId, '⚠️ حدث عطل مؤقت، سيتم إعادة المحاولة تلقائياً.');
-        saveChatMessage('assistant', '⚠️ سيتم إعادة محاولة الإرسال.');
-    }
+function updateChatMessage(id, newText) {
+    const el = document.getElementById(id);
+    if (el) el.querySelector('div').textContent = newText;
 }
 
 // ---- 12. الصوت والصورة ----
@@ -590,7 +500,7 @@ function clearChatImage() {
 
 function toggleVoiceRecognition() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        alert('المتصفح لا يدعم التسجيل الصوتي المباشر');
+        alert('المتصفح لا يدعم التسجيل الصوتي');
         return;
     }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -659,7 +569,7 @@ function saveReminderSettings() {
     const reminderMinutes = parseInt(document.getElementById('reminder-minutes').value) || 15;
 
     if (selectedDays.length === 0) {
-        alert('الرجاء اختيار يوم واحد على الأقل للتمرين');
+        alert('الرجاء اختيار يوم واحد على الأقل');
         return;
     }
 
@@ -674,7 +584,7 @@ function saveReminderSettings() {
     localStorage.setItem('reminderSettings', JSON.stringify(settings));
     updateReminderStatus(settings);
     startReminderChecker();
-    alert('✅ تم حفظ التنبيهات بنجاح!');
+    alert('✅ تم حفظ التنبيهات!');
 }
 
 function updateReminderStatus(settings) {
@@ -687,52 +597,39 @@ function updateReminderStatus(settings) {
         }).join('، ');
         statusEl.innerHTML = `
             <i class="fa-solid fa-check-circle text-emerald-400"></i> 
-            مفعلة: أيام (${daysArabic}) الساعة ${settings.time} (تنبيه قبل ${settings.reminderMinutes} دقيقة)
+            مفعلة: أيام (${daysArabic}) الساعة ${settings.time}
         `;
         statusEl.className = 'text-center text-xs bg-emerald-950/30 text-emerald-400 border border-emerald-800/30 p-2 rounded-xl';
     } else {
-        statusEl.innerHTML = `
-            <i class="fa-solid fa-bell-slash text-slate-500"></i> 
-            التنبيهات غير مفعلة
-        `;
+        statusEl.innerHTML = `<i class="fa-solid fa-bell-slash"></i> التنبيهات غير مفعلة`;
         statusEl.className = 'text-center text-xs text-slate-400 bg-slate-800/50 p-2 rounded-xl border border-slate-700/50';
     }
 }
 
 function startReminderChecker() {
-    if (reminderInterval) {
-        clearInterval(reminderInterval);
-    }
-
+    if (reminderInterval) clearInterval(reminderInterval);
     const settings = JSON.parse(localStorage.getItem('reminderSettings') || '{}');
     if (!settings.enabled || !settings.days || settings.days.length === 0) return;
 
-    reminderInterval = setInterval(() => {
-        checkReminder();
-    }, 30000);
-
+    reminderInterval = setInterval(checkReminder, 30000);
     checkReminder();
 }
 
 function checkReminder() {
     const settings = JSON.parse(localStorage.getItem('reminderSettings') || '{}');
-    if (!settings.enabled || !settings.days || settings.days.length === 0) return;
+    if (!settings.enabled || !settings.days) return;
 
     const now = new Date();
     const today = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const todayKey = today;
-
-    if (!settings.days.includes(todayKey)) return;
+    if (!settings.days.includes(today)) return;
 
     const [hour, minute] = settings.time.split(':').map(Number);
     const reminderMinutes = settings.reminderMinutes || 15;
-    
     const targetTime = new Date();
     targetTime.setHours(hour, minute - reminderMinutes, 0, 0);
-    
-    const timeDiff = (now.getTime() - targetTime.getTime()) / 60000;
+    const diff = (now.getTime() - targetTime.getTime()) / 60000;
 
-    if (timeDiff >= 0 && timeDiff < 0.5) {
+    if (diff >= 0 && diff < 0.5) {
         const lastDate = localStorage.getItem('lastNotificationDate');
         const todayDate = now.toDateString();
         if (lastDate !== todayDate) {
@@ -744,11 +641,10 @@ function checkReminder() {
 
 function sendWorkoutReminder(settings) {
     if ('Notification' in window && Notification.permission === 'granted') {
-        const notification = new Notification('⏰ NGym - وقت التمرين!', {
-            body: `حان وقت التمرين! استعد للذهاب إلى النادي في ${settings.reminderMinutes} دقيقة. 💪`,
+        new Notification('⏰ NGym - وقت التمرين!', {
+            body: `حان وقت التمرين! استعد في ${settings.reminderMinutes} دقيقة. 💪`,
             icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🏋️</text></svg>'
         });
-        setTimeout(() => notification.close(), 10000);
     }
 
     const logContainer = document.getElementById('reminder-log');
@@ -756,40 +652,21 @@ function sendWorkoutReminder(settings) {
         const timeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
         logContainer.innerHTML = `
             <div class="text-emerald-400 border-b border-slate-800/50 py-1 animate-pulse">
-                🔔 تم تذكيرك في الساعة ${timeStr} - ${settings.reminderMinutes} دقيقة متبقية
+                🔔 تم تذكيرك الساعة ${timeStr}
             </div>
         ` + logContainer.innerHTML;
-        if (logContainer.children.length > 10) {
-            logContainer.removeChild(logContainer.lastChild);
-        }
+        if (logContainer.children.length > 10) logContainer.removeChild(logContainer.lastChild);
     }
-
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        oscillator.frequency.value = 800;
-        gainNode.gain.value = 0.1;
-        oscillator.start();
-        setTimeout(() => {
-            oscillator.stop();
-            gainNode.gain.value = 0;
-        }, 500);
-    } catch (e) { /* تجاهل الأخطاء الصوتية */ }
 }
 
 function requestNotificationPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-            console.log('إذن الإشعارات:', permission);
-        });
+        Notification.requestPermission();
     }
 }
 
 // ---- 14. نظام الاشتراكات ----
-function checkSubscriptionStatus() {
+async function checkSubscriptionStatus() {
     const endDate = localStorage.getItem('subscriptionEndDate');
     if (!endDate) return 'no_subscription';
     const now = new Date();
@@ -806,8 +683,8 @@ function getRemainingDays() {
     return diff > 0 ? diff : 0;
 }
 
-function updateSubscriptionUI() {
-    const status = checkSubscriptionStatus();
+async function updateSubscriptionUI() {
+    const status = await checkSubscriptionStatus();
     const daysLeft = getRemainingDays();
     const banner = document.getElementById('subscription-banner');
     const statusEl = document.getElementById('subscription-status');
@@ -816,7 +693,7 @@ function updateSubscriptionUI() {
     if (!banner || !statusEl) return;
 
     if (status === 'expired') {
-        statusEl.textContent = '⛔ انتهت فترة التجربة. يرجى التجديد للاستمرار.';
+        statusEl.textContent = '⛔ انتهت فترة التجربة. يرجى التجديد.';
         banner.className = 'bg-slate-800 border border-slate-700 rounded-2xl p-3 text-center text-xs subscription-expired';
         if (renewBtn) renewBtn.classList.remove('hidden');
     } else if (status === 'active') {
@@ -824,23 +701,78 @@ function updateSubscriptionUI() {
         banner.className = 'bg-slate-800 border border-slate-700 rounded-2xl p-3 text-center text-xs subscription-badge';
         if (renewBtn) renewBtn.classList.add('hidden');
     } else {
-        statusEl.textContent = '🔑 يرجى تفعيل اشتراكك للاستفادة من جميع الميزات';
+        statusEl.textContent = '🔑 يرجى تفعيل اشتراكك';
         banner.className = 'bg-slate-800 border border-slate-700 rounded-2xl p-3 text-center text-xs';
         if (renewBtn) renewBtn.classList.remove('hidden');
     }
 }
 
-function renewSubscription(months) {
+async function renewSubscription(months) {
     const currentEnd = localStorage.getItem('subscriptionEndDate');
     const newEnd = currentEnd ? new Date(currentEnd) : new Date();
     newEnd.setMonth(newEnd.getMonth() + months);
     localStorage.setItem('subscriptionEndDate', newEnd.toISOString());
     localStorage.setItem('subscriptionStatus', 'active');
-    updateSubscriptionUI();
-    alert(`✅ تم التجديد بنجاح حتى ${newEnd.toLocaleDateString()}`);
+    await updateSubscriptionUI();
+    alert(`✅ تم التجديد حتى ${newEnd.toLocaleDateString()}`);
 }
 
-// ---- 15. لوحة المشرف ----
+// ---- 15. دوال Firebase للأكواد ----
+async function generateCode(days) {
+    if (!db) {
+        alert("❌ Firebase غير متصل.");
+        return;
+    }
+    const code = 'NGYM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    try {
+        await db.collection('codes').doc(code).set({
+            days: days,
+            isUsed: false,
+            createdAt: new Date().toISOString()
+        });
+        alert(`✅ كود جديد:\n${code}\n(المدة: ${days} يوم)`);
+        loadAdminCodes();
+    } catch (e) {
+        console.error("خطأ في إنشاء الكود:", e);
+        alert("فشل إنشاء الكود.");
+    }
+}
+
+async function redeemSubscriptionCode(codeText) {
+    if (!db) {
+        alert("❌ Firebase غير متصل.");
+        return;
+    }
+    const cleanCode = codeText.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    try {
+        const docRef = db.collection('codes').doc(cleanCode);
+        const doc = await docRef.get();
+
+        if (!doc.exists || doc.data().isUsed) {
+            alert("❌ الكود غير صالح أو مستخدم!");
+            return;
+        }
+
+        const daysToAdd = doc.data().days;
+        const now = new Date();
+        const currentEnd = localStorage.getItem('subscriptionEndDate');
+        let newEndDate = currentEnd && new Date(currentEnd) > now ? new Date(currentEnd) : now;
+
+        newEndDate.setDate(newEndDate.getDate() + daysToAdd);
+        localStorage.setItem('subscriptionEndDate', newEndDate.toISOString());
+        await docRef.update({ isUsed: true, usedAt: new Date().toISOString() });
+
+        alert(`🎉 تم تفعيل الاشتراك لمدة ${daysToAdd} يوم!`);
+        updateDashboardUI();
+    } catch (e) {
+        console.error("خطأ التفعيل:", e);
+        alert("حدث خطأ أثناء التفعيل.");
+    }
+}
+
+// ---- 16. لوحة المشرف ----
 function setupAdminPanel() {
     document.getElementById('app-logo')?.addEventListener('click', function() {
         logoClickCount++;
@@ -873,63 +805,117 @@ function setupAdminPanel() {
 
     document.getElementById('generate-code-btn')?.addEventListener('click', function() {
         const duration = parseInt(document.getElementById('code-duration').value);
-        const code = generateActivationCode();
-        
-        const codes = JSON.parse(localStorage.getItem('adminCodes') || '[]');
-        codes.push({
-            code: code,
-            duration: duration,
-            usedBy: null,
-            usedAt: null,
-            createdAt: new Date().toISOString(),
-            active: true
-        });
-        localStorage.setItem('adminCodes', JSON.stringify(codes));
-        alert(`✅ تم إنشاء الكود: ${code}`);
-        loadAdminCodes();
+        generateCode(duration);
     });
 }
 
-function generateActivationCode() {
-    const prefix = 'NGYM';
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `${prefix}-${random}`;
-}
-
 function loadAdminCodes() {
-    const codes = JSON.parse(localStorage.getItem('adminCodes') || '[]');
     const container = document.getElementById('codes-list');
-    if (codes.length === 0) {
-        container.innerHTML = '<div class="text-slate-400">لا توجد أكواد</div>';
-        return;
+    if (!container) return;
+    if (db) {
+        db.collection('codes').orderBy('createdAt', 'desc').limit(20).get()
+            .then(snapshot => {
+                if (snapshot.empty) {
+                    container.innerHTML = '<div class="text-slate-400">لا توجد أكواد</div>';
+                    return;
+                }
+                container.innerHTML = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    const used = data.isUsed ? 'مستخدم ✅' : 'فعال 🔓';
+                    const color = data.isUsed ? 'text-emerald-400' : 'text-amber-400';
+                    return `<div class="flex justify-between border-b border-slate-800 py-1">
+                        <span class="font-mono text-emerald-400">${doc.id}</span>
+                        <span class="${color}">${used}</span>
+                        <span class="text-slate-400">${data.days} يوم</span>
+                    </div>`;
+                }).join('');
+            })
+            .catch(err => {
+                console.error(err);
+                container.innerHTML = '<div class="text-red-400">خطأ في تحميل الأكواد</div>';
+            });
+    } else {
+        container.innerHTML = '<div class="text-amber-400">⚠️ Firebase غير متصل</div>';
     }
-    container.innerHTML = codes.map(c => {
-        const used = c.usedBy ? 'مستخدم ✅' : 'فعال 🔓';
-        const color = c.usedBy ? 'text-emerald-400' : 'text-amber-400';
-        return `<div class="flex justify-between border-b border-slate-800 py-1">
-            <span class="font-mono text-emerald-400">${c.code}</span>
-            <span class="${color}">${used}</span>
-            <span class="text-slate-400">${c.duration} شهر</span>
-        </div>`;
-    }).join('');
 }
 
 function loadAdminUsers() {
     const container = document.getElementById('users-list');
-    const users = JSON.parse(localStorage.getItem('adminUsers') || '[]');
-    if (users.length === 0) {
-        container.innerHTML = '<div class="text-slate-400">لا يوجد مستخدمون</div>';
-        return;
-    }
-    container.innerHTML = users.map(u => `
-        <div class="flex justify-between border-b border-slate-800 py-1 text-xs">
-            <span>${u.id?.slice(0, 12) || 'مستخدم'}...</span>
-            <span class="text-emerald-400">${u.subscriptionEnd || 'غير مفعل'}</span>
-        </div>
-    `).join('');
+    if (!container) return;
+    container.innerHTML = '<div class="text-slate-400">قريباً: إدارة المستخدمين</div>';
 }
 
-// ---- 16. التنقل بين التبويبات والنوافذ ----
+// ---- 17. التنقل والنوافذ ----
+async function handleSendMessage() {
+    const status = await checkSubscriptionStatus();
+    if (status === 'expired' || status === 'no_subscription') {
+        renderChatMessage('assistant', '⛔ يرجى تجديد اشتراكك للاستمرار في استخدام المدرب الذكي.');
+        document.getElementById('renew-btn')?.classList.remove('hidden');
+        return;
+    }
+
+    const inputEl = document.getElementById('chat-input');
+    const messageText = inputEl.value.trim();
+    if (!messageText && !selectedBase64Image) return;
+
+    const textToSend = messageText || "قم بتحليل الوجبة في هذه الصورة:";
+    const imageToSend = selectedBase64Image;
+
+    const userMsgId = renderChatMessage('user', textToSend);
+    saveChatMessage('user', textToSend);
+    inputEl.value = '';
+    clearChatImage();
+
+    if (!navigator.onLine) {
+        const pendingId = 'pending-' + Date.now();
+        addToPendingQueue(textToSend, imageToSend);
+        const userEl = document.getElementById(userMsgId);
+        if (userEl) {
+            const badge = document.createElement('span');
+            badge.className = 'pending-badge text-amber-400 text-[10px] mr-2';
+            badge.textContent = '⏳ في الانتظار...';
+            userEl.querySelector('div')?.appendChild(badge);
+        }
+        renderChatMessage('assistant', '⏳ لا يوجد اتصال. سيتم الإرسال تلقائياً.');
+        return;
+    }
+
+    const loadingId = renderChatMessage('assistant', 'جاري التفكير...');
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                systemPrompt: buildSystemPrompt(),
+                userPlan: {
+                    user: getUserData(),
+                    targets: calculateNutritionTargets()
+                },
+                history: JSON.parse(localStorage.getItem('chatHistory') || '[]'),
+                userMessage: textToSend,
+                imageBase64: imageToSend || null
+            })
+        });
+
+        if (!response.ok) throw new Error('API Error');
+
+        const data = await response.json();
+        const aiResponse = data.reply || generateLocalAIResponse(textToSend);
+
+        updateChatMessage(loadingId, aiResponse);
+        saveChatMessage('assistant', aiResponse);
+        addXP(10);
+        updateDashboardUI();
+
+    } catch (error) {
+        console.error('فشل الإرسال:', error);
+        const pendingId = 'pending-' + Date.now();
+        addToPendingQueue(textToSend, imageToSend);
+        updateChatMessage(loadingId, '⚠️ حدث عطل، سيتم إعادة المحاولة.');
+    }
+}
+
 function switchTab(tabName) {
     ['dashboard', 'workouts', 'coach', 'reminders'].forEach(t => {
         document.getElementById(`sec-${t}`)?.classList.add('hidden');
@@ -937,7 +923,6 @@ function switchTab(tabName) {
     });
     document.getElementById(`sec-${tabName}`)?.classList.remove('hidden');
     document.getElementById(`tab-${tabName}`)?.classList.add('text-emerald-400', 'bg-slate-800', 'shadow');
-    
     if (tabName === 'workouts') renderWorkoutsList();
     if (tabName === 'coach') loadChatHistory();
 }
@@ -947,7 +932,7 @@ function openModal(id) {
         const u = getUserData();
         document.getElementById('input-weight').value = u.weight;
         document.getElementById('input-target-weight').value = u.targetWeight;
-        document.getElementById('input-height').value = u.height;
+        document.getElementById('input-height').value = u.height || 175;
         document.getElementById('input-age').value = u.age;
         document.getElementById('select-goal').value = u.goal;
         document.getElementById('select-activity').value = u.activity;
@@ -960,8 +945,15 @@ function closeModal(id) {
     document.getElementById(id)?.classList.add('hidden');
 }
 
-// ---- 17. التهيئة والتشغيل ----
-document.addEventListener('DOMContentLoaded', function () {
+// ---- 18. التهيئة والتشغيل ----
+document.addEventListener('DOMContentLoaded', async function () {
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        db = firebase.firestore();
+        console.log('✅ Firebase connected');
+    } else {
+        console.warn('⚠️ Firebase not available');
+    }
+
     checkDailyReset();
     updateDashboardUI();
     loadExerciseDatabase();
@@ -976,10 +968,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.addEventListener('online', function() {
-        console.log('🔄 استعادة الاتصال بالإنترنت...');
         const pending = getPendingMessages();
         if (pending.length > 0) {
-            renderChatMessage('assistant', '🔁 استعادة الاتصال بالإنترنت، جاري إرسال الرسائل المعلقة...');
+            renderChatMessage('assistant', '🔁 استعادة الاتصال، جاري إرسال الرسائل المعلقة...');
             retryPendingMessages();
         }
         const indicator = document.getElementById('offline-indicator');
@@ -987,13 +978,12 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     window.addEventListener('offline', function() {
-        console.log('📴 فقدان الاتصال بالإنترنت');
         const container = document.getElementById('chat-messages');
         if (container) {
             const offlineMsg = document.createElement('div');
             offlineMsg.className = 'text-center text-xs text-amber-400 bg-amber-950/30 p-2 rounded-xl border border-amber-700/50 my-2';
             offlineMsg.id = 'offline-indicator';
-            offlineMsg.innerHTML = '<i class="fa-solid fa-wifi-slash"></i> لا يوجد اتصال بالإنترنت. سيتم حفظ رسائلك وإرسالها تلقائياً عند عودة الاتصال.';
+            offlineMsg.innerHTML = '<i class="fa-solid fa-wifi-slash"></i> لا يوجد اتصال. سيتم حفظ رسائلك وإرسالها تلقائياً.';
             container.prepend(offlineMsg);
         }
     });
@@ -1036,13 +1026,9 @@ document.addEventListener('DOMContentLoaded', function () {
         e.preventDefault();
         if (!currentExercise) return;
         const duration = parseInt(document.getElementById('exercise-duration').value) || 10;
-        const burned = logExerciseWithDetails(
-            currentExercise.muscle,
-            currentExercise.met,
-            duration
-        );
+        const burned = logExerciseWithDetails(currentExercise.muscle, currentExercise.met, duration);
         closeModal('exercise-modal');
-        alert(`✅ تم تسجيل ${currentExercise.name} لمدة ${duration} دقيقة، أحرقت ${burned} سعرة (+25 XP)`);
+        alert(`✅ تم تسجيل ${currentExercise.name} (${burned} سعرة) +25 XP`);
         currentExercise = null;
     });
 
@@ -1050,21 +1036,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('renew-btn')?.addEventListener('click', function() {
         const code = prompt('أدخل كود التفعيل:');
-        if (code && code.startsWith('NGYM-')) {
-            const codes = JSON.parse(localStorage.getItem('adminCodes') || '[]');
-            const found = codes.find(c => c.code === code && !c.usedBy);
-            if (found) {
-                found.usedBy = 'user-' + Date.now();
-                found.usedAt = new Date().toISOString();
-                found.active = false;
-                localStorage.setItem('adminCodes', JSON.stringify(codes));
-                renewSubscription(found.duration);
-            } else {
-                alert('❌ كود غير صحيح أو مستخدم بالفعل');
-            }
-        } else {
-            alert('❌ كود غير صحيح');
-        }
+        if (code) redeemSubscriptionCode(code);
     });
 
     document.getElementById('send-chat-btn')?.addEventListener('click', handleSendMessage);
