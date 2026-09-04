@@ -4,21 +4,19 @@ module.exports = async (req, res) => {
     }
 
     try {
-        // قراءة الرسالة سواء أرسلت كـ message أو prompt أو content
         const { message, prompt, history, messages } = req.body;
         const userMessage = message || prompt || (messages && messages[messages.length - 1]?.content);
 
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY غير معرف' });
+            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY غير موجود في Environment Variables على Vercel' });
         }
 
         if (!userMessage) {
-            return res.status(400).json({ error: 'لم يتم استلام أي نص في الطلب' });
+            return res.status(400).json({ error: 'النص المرسل فارغ' });
         }
 
-        // بناء الـ contents بشكل سليم ومقبول لدى Gemini API
         const contents = [
             {
                 role: 'user',
@@ -26,7 +24,6 @@ module.exports = async (req, res) => {
             }
         ];
 
-        // استدعاء Gemini 1.5 Flash
         const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
             {
@@ -40,19 +37,17 @@ module.exports = async (req, res) => {
 
         const data = await response.json();
 
+        // إرجاع الخطأ الحقيقي من Google إلى المتصفح مباشرة لنراه
         if (!response.ok) {
-            console.error('Gemini API Error Detail:', JSON.stringify(data));
             return res.status(response.status).json({ 
-                error: data.error?.message || 'حدث خطأ في استجابة Gemini API' 
+                error: `خطأ من جوجل: ${data.error?.message || JSON.stringify(data)}` 
             });
         }
 
-        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد من النموذج.';
-
+        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد.';
         return res.status(200).json({ reply: replyText });
 
     } catch (error) {
-        console.error('Server Exception:', error);
-        return res.status(500).json({ error: 'حدث خطأ داخلي في السيرفر' });
+        return res.status(500).json({ error: 'خطأ بالسيرفر: ' + error.message });
     }
 };
