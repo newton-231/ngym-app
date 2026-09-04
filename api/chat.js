@@ -5,26 +5,14 @@ module.exports = async (req, res) => {
 
     try {
         let body = req.body;
-        
-        // طباعة البيانات القادمة في سجلات Vercel لنراها بوضوح
-        console.log("Received Body from Frontend:", JSON.stringify(body));
-
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (e) {}
         }
         body = body || {};
 
-        // البحث عن النص بأي اسم محتمل أو حتى أول نص متاح في الكائن
-        let userMessage = body.message || body.prompt || body.text || body.content || body.msg;
-
-        if (!userMessage && typeof body === 'object') {
-            for (let key of Object.keys(body)) {
-                if (typeof body[key] === 'string' && body[key].trim().length > 0) {
-                    userMessage = body[key];
-                    break;
-                }
-            }
-        }
+        // استخراج النص بأي طريقة ممكنة من الواجهة
+        const userMessage = body.message || body.prompt || body.text || body.content || 
+                          (body.messages && body.messages[body.messages.length - 1]?.content);
 
         const apiKey = process.env.GEMINI_API_KEY;
 
@@ -33,43 +21,39 @@ module.exports = async (req, res) => {
         }
 
         if (!userMessage) {
-            return res.status(400).json({ 
-                error: 'الطلب وصل ولكن لم يتم العثور على أي حقل نصي صالح في الـ Body',
-                received: body 
-            });
+            return res.status(400).json({ error: 'النص المدخل فارغ' });
         }
 
-        const contents = [
-            {
-                role: 'user',
+        // الهيكل القياسي المعتمد رسمياً لدى Google للنسخة v1
+        const requestBody = {
+            contents: [{
                 parts: [{ text: String(userMessage) }]
-            }
-        ];
+            }]
+        };
 
         const apiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
+            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents })
+                body: JSON.stringify(requestBody)
             }
         );
 
         const data = await apiResponse.json();
 
         if (!apiResponse.ok) {
-            console.error("Google API Error Details:", data);
+            console.error("Google API Error:", JSON.stringify(data));
             return res.status(apiResponse.status).json({ 
-                error: data.error?.message || 'خطأ من خدمة جوجل',
-                details: data 
+                error: data.error?.message || 'خطأ من سيرفر جوجل' 
             });
         }
 
-        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد.';
+        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد من النموذج.';
         return res.status(200).json({ reply: replyText });
 
-    } catch (error) {
-        console.error("Server Exception:", error);
-        return res.status(500).json({ error: 'خطأ بالسيرفر: ' + error.message });
+    }akah (error) {
+        console.error("Server Error:", error);
+        return res.status(500).json({ error: 'خطأ داخلي في السيرفر: ' + error.message });
     }
 };
