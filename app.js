@@ -1,6 +1,6 @@
 // ==================================================
 // NGym - التطبيق الذكي بالكامل (JavaScript)
-// الإصدار النهائي المتكامل مع Firebase
+// الإصدار النهائي المتكامل مع Firebase وبيانات التمارين الموسعة
 // ==================================================
 
 // ---- 1. البيانات الثابتة والقيم الافتراضية ----
@@ -10,21 +10,87 @@ const DEFAULT_USER_DATA = {
 };
 
 const FALLBACK_WORKOUTS = [
-    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'Chest', location: 'home', met: 3.8 },
-    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'Legs', location: 'home', met: 5 },
-    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'Core', location: 'home', met: 4 }
+    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'Chest', location: 'home', met: 3.8, equipment: 'body only', level: 'beginner' },
+    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'Legs', location: 'home', met: 5, equipment: 'body only', level: 'beginner' },
+    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'Core', location: 'home', met: 4, equipment: 'body only', level: 'beginner' }
 ];
 
 let exerciseDatabase = [];
 let selectedBase64Image = null;
 let currentFilter = 'all';
+let currentLevelFilter = 'all'; // فلتر المستوى الجديد
 let currentExercise = null;
 let reminderInterval = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
-let db = null; // متغير Firebase
+let db = null;
 
-// ---- 2. إدارة التخزين المحلي ----
+// ---- 2. دالة تحويل بيانات التمارين ----
+function convertExerciseData(rawData) {
+    if (!rawData || !Array.isArray(rawData)) return [];
+    
+    return rawData.map(ex => {
+        // تحديد الموقع بناءً على المعدات
+        let location = 'home';
+        const gymEquipment = ['barbell', 'dumbbell', 'machine', 'cable', 'kettlebell', 'band', 'e-z curl bar', 'chains', 'smith machine'];
+        if (ex.equipment && gymEquipment.some(eq => ex.equipment.toLowerCase().includes(eq))) {
+            location = 'gym';
+        }
+
+        // استخراج العضلة الأساسية
+        const targetMuscle = ex.primaryMuscles && ex.primaryMuscles.length > 0 
+            ? ex.primaryMuscles[0] 
+            : ex.target_muscle || '';
+
+        // حساب MET تقريبي
+        const metMap = {
+            'strength': 5,
+            'cardio': 7,
+            'stretching': 2,
+            'plyometrics': 6,
+            'powerlifting': 6,
+            'olympic weightlifting': 6,
+            'strongman': 7,
+            'calisthenics': 4
+        };
+        const met = ex.met || metMap[ex.category] || 5;
+
+        // بناء مسار الصورة (استخدام images إن وجد، وإلا استخدام id)
+        let gifPath = '/assets/gifs/default.gif';
+        if (ex.images && ex.images.length > 0) {
+            // تحويل مسار الصور إلى GIF (افتراضي)
+            const imgName = ex.images[0].split('/')[0];
+            gifPath = `/assets/gifs/${imgName}.gif`;
+        } else if (ex.gif_url) {
+            gifPath = ex.gif_url;
+        } else {
+            // محاولة استخدام id
+            const folder = ex.id && ex.id.length >= 4 ? ex.id.substring(0, 2) : '1';
+            gifPath = `/assets/gifs/${folder}/${ex.id}.gif`;
+        }
+
+        return {
+            id: ex.id || 'ex_' + Math.random().toString(36).substring(2, 8),
+            name: ex.name || 'تمرين',
+            name_ar: ex.name_ar || ex.name || 'تمرين',
+            category: ex.category || 'strength',
+            target_muscle: targetMuscle,
+            location: location,
+            met: met,
+            equipment: ex.equipment || 'body only',
+            level: ex.level || 'beginner',
+            instructions: ex.instructions || [],
+            gif_url: gifPath,
+            force: ex.force || null,
+            mechanic: ex.mechanic || null,
+            secondaryMuscles: ex.secondaryMuscles || [],
+            // الاحتفاظ بالبيانات الأصلية للتوسع
+            _raw: ex
+        };
+    });
+}
+
+// ---- 3. إدارة التخزين المحلي ----
 function getUserData() {
     return {
         weight: parseFloat(localStorage.getItem('userWeight')) || DEFAULT_USER_DATA.weight,
@@ -64,7 +130,7 @@ function checkDailyReset() {
     }
 }
 
-// ---- 3. المحرك الرياضي ----
+// ---- 4. المحرك الرياضي ----
 function calculateNutritionTargets() {
     const u = getUserData();
     let bmr = (10 * u.weight) + (6.25 * u.height) - (5 * u.age) + (u.gender === 'male' ? 5 : -161);
@@ -112,7 +178,7 @@ function getRank(xp) {
     return { title: 'مبتدئ طموح 🌱', color: 'text-emerald-400' };
 }
 
-// ---- 4. تحديث الواجهة ----
+// ---- 5. تحديث الواجهة ----
 function updateDashboardUI() {
     checkDailyReset();
     const targets = calculateNutritionTargets();
@@ -164,13 +230,13 @@ function highlightMuscles() {
     });
 }
 
-// ---- 5. تحميل بيانات التمارين ----
+// ---- 6. تحميل بيانات التمارين مع التحويل ----
 async function loadExerciseDatabase() {
     try {
         const response = await fetch('/data/exercises.json');
         if (!response.ok) throw new Error('فشل تحميل ملف التمارين');
-        const data = await response.json();
-        exerciseDatabase = data;
+        const rawData = await response.json();
+        exerciseDatabase = convertExerciseData(rawData);
         console.log(`✅ تم تحميل ${exerciseDatabase.length} تمرين`);
         renderWorkoutsList();
     } catch (error) {
@@ -180,14 +246,15 @@ async function loadExerciseDatabase() {
     }
 }
 
-// ---- 6. دالة جلب مسار الـ GIF الذكي ----
+// ---- 7. دالة جلب مسار الـ GIF الذكي ----
 function getExerciseGifUrl(exercise) {
     if (exercise.gif_url) return exercise.gif_url;
-    const folder = '1';
+    // محاولة استنتاج المسار من id
+    const folder = exercise.id && exercise.id.length >= 4 ? exercise.id.substring(0, 2) : '1';
     return `assets/gifs/${folder}/${exercise.id}.gif`;
 }
 
-// ---- 7. التمارين (عرض، تصفية، مفضلة) ----
+// ---- 8. التمارين (عرض، تصفية، مفضلة) ----
 function toggleFavorite(id) {
     let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
     if (favs.includes(id)) favs = favs.filter(f => f !== id);
@@ -210,11 +277,28 @@ function filterWorkouts(filter) {
     renderWorkoutsList();
 }
 
+// تصفية حسب المستوى
+function filterByLevel(level) {
+    currentLevelFilter = level;
+    document.querySelectorAll('.level-btn').forEach(btn => {
+        btn.classList.remove('active-filter', 'bg-emerald-600/20', 'text-emerald-400', 'border-emerald-500/30');
+        btn.classList.add('bg-slate-800', 'text-slate-400');
+    });
+    const activeBtn = document.querySelector(`.level-btn[onclick="filterByLevel('${level}')"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active-filter', 'bg-emerald-600/20', 'text-emerald-400', 'border-emerald-500/30');
+        activeBtn.classList.remove('bg-slate-800', 'text-slate-400');
+    }
+    renderWorkoutsList();
+}
+
 function renderWorkoutsList() {
     const container = document.getElementById('workouts-list');
     if (!container) return;
 
     let filtered = exerciseDatabase;
+    
+    // تصفية حسب الموقع (all, home, gym)
     if (currentFilter === 'favorites') {
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
         filtered = exerciseDatabase.filter(ex => favs.includes(ex.id));
@@ -228,6 +312,11 @@ function renderWorkoutsList() {
         );
     }
 
+    // تصفية حسب المستوى (إذا كان محدداً)
+    if (currentLevelFilter !== 'all') {
+        filtered = filtered.filter(ex => ex.level === currentLevelFilter);
+    }
+
     if (filtered.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-8">لا توجد تمارين مطابقة</div>';
         return;
@@ -238,14 +327,19 @@ function renderWorkoutsList() {
         const gifPath = getExerciseGifUrl(ex);
         const displayName = ex.name_ar || ex.name || 'تمرين';
         const muscle = ex.target_muscle || '';
+        const levelLabels = { beginner: 'مبتدئ', intermediate: 'متوسط', expert: 'متقدم' };
+        const levelLabel = levelLabels[ex.level] || ex.level || '';
+        const equipment = ex.equipment || '';
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm workout-card">
             <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0">
-                <img src="${gifPath}" alt="${displayName}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/gifs/default.gif';">
+                <img src="${gifPath}" alt="${displayName}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/assets/gifs/default.gif';">
             </div>
             <div class="flex-1 min-w-0">
                 <h4 class="text-xs font-bold text-slate-200 truncate">${displayName}</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${muscle} ${ex.category ? '· ' + ex.category : ''}</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">
+                    ${muscle} ${equipment ? '· ' + equipment : ''} ${levelLabel ? '· ' + levelLabel : ''}
+                </p>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
                 <button onclick="toggleFavorite('${ex.id}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} hover:text-yellow-400 transition text-sm">
@@ -259,14 +353,14 @@ function renderWorkoutsList() {
     `}).join('');
 }
 
-// ---- 8. نافذة تسجيل التمرين ----
+// ---- 9. نافذة تسجيل التمرين ----
 function openExerciseModal(id, name, muscle, met) {
     currentExercise = { id, name, muscle, met };
     document.getElementById('exercise-name').value = name;
     document.getElementById('exercise-modal').classList.remove('hidden');
 }
 
-// ---- 9. المدرب الذكي والمحادثة ----
+// ---- 10. المدرب الذكي والمحادثة ----
 function buildSystemPrompt() {
     const u = getUserData();
     const targets = calculateNutritionTargets();
@@ -291,14 +385,18 @@ function generateLocalAIResponse(prompt) {
 
     if (workout) {
         const gifPath = getExerciseGifUrl(workout);
-        return `🔍 **${workout.name_ar || workout.name}**\n- العضلة: ${workout.target_muscle}\n- التصنيف: ${workout.category}\n- MET: ${workout.met}\n\n<img src="${gifPath}" class="max-w-full rounded-lg mt-2 border border-slate-700" onerror="this.style.display='none'"/>`;
+        const levelLabels = { beginner: 'مبتدئ', intermediate: 'متوسط', expert: 'متقدم' };
+        const levelLabel = levelLabels[workout.level] || workout.level || '';
+        return `🔍 **${workout.name_ar || workout.name}**\n- العضلة: ${workout.target_muscle}\n- التصنيف: ${workout.category}\n- المعدات: ${workout.equipment}\n- المستوى: ${levelLabel}\n- MET: ${workout.met}\n\n<img src="${gifPath}" class="max-w-full rounded-lg mt-2 border border-slate-700" onerror="this.style.display='none'"/>`;
     }
 
     if (p.includes('تمرين اليوم') || p.includes('جدول')) {
         const workouts = exerciseDatabase.slice(0, 4);
         let reply = '📋 **جدول تمارين اليوم:**\n\n';
         workouts.forEach((w, i) => {
-            reply += `**${i+1}. ${w.name_ar || w.name}**\n   - العضلة: ${w.target_muscle}\n   - 3 جولات × 12 تكرار\n\n`;
+            const levelLabels = { beginner: 'مبتدئ', intermediate: 'متوسط', expert: 'متقدم' };
+            const levelLabel = levelLabels[w.level] || w.level || '';
+            reply += `**${i+1}. ${w.name_ar || w.name}**\n   - العضلة: ${w.target_muscle}\n   - المعدات: ${w.equipment}\n   - المستوى: ${levelLabel}\n   - 3 جولات × 12 تكرار\n\n`;
         });
         reply += '💡 اشرب ماءً كافياً وتحكم في الحركة.';
         return reply;
@@ -340,7 +438,7 @@ async function callGeminiAIThroughServer(prompt, base64Img = null) {
     }
 }
 
-// ---- 10. نظام قائمة انتظار الرسائل (Offline) ----
+// ---- 11. نظام قائمة انتظار الرسائل (Offline) ----
 function addToPendingQueue(messageText, imageBase64 = null) {
     const pending = JSON.parse(localStorage.getItem('pendingMessages') || '[]');
     pending.push({
@@ -438,7 +536,7 @@ async function retryPendingMessages() {
     }
 }
 
-// ---- 11. دالة إرسال الرسالة الرئيسية ----
+// ---- 12. دالة إرسال الرسالة الرئيسية ----
 function saveChatMessage(sender, text) {
     let history = JSON.parse(localStorage.getItem('chatHistory')) || [];
     history.push({ sender, text });
@@ -479,7 +577,7 @@ function updateChatMessage(id, newText) {
     if (el) el.querySelector('div').textContent = newText;
 }
 
-// ---- 12. الصوت والصورة ----
+// ---- 13. الصوت والصورة ----
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (file) {
@@ -522,7 +620,7 @@ function toggleVoiceRecognition() {
     recognition.start();
 }
 
-// ---- 13. نظام التنبيهات ----
+// ---- 14. نظام التنبيهات ----
 function loadReminderSettings() {
     const settings = JSON.parse(localStorage.getItem('reminderSettings') || '{}');
     if (settings.days) {
@@ -665,7 +763,7 @@ function requestNotificationPermission() {
     }
 }
 
-// ---- 14. نظام الاشتراكات ----
+// ---- 15. نظام الاشتراكات ----
 async function checkSubscriptionStatus() {
     const endDate = localStorage.getItem('subscriptionEndDate');
     if (!endDate) return 'no_subscription';
@@ -717,7 +815,7 @@ async function renewSubscription(months) {
     alert(`✅ تم التجديد حتى ${newEnd.toLocaleDateString()}`);
 }
 
-// ---- 15. دوال Firebase للأكواد ----
+// ---- 16. دوال Firebase للأكواد ----
 async function generateCode(days) {
     if (!db) {
         alert("❌ Firebase غير متصل.");
@@ -772,7 +870,7 @@ async function redeemSubscriptionCode(codeText) {
     }
 }
 
-// ---- 16. لوحة المشرف ----
+// ---- 17. لوحة المشرف ----
 function setupAdminPanel() {
     document.getElementById('app-logo')?.addEventListener('click', function() {
         logoClickCount++;
@@ -845,7 +943,7 @@ function loadAdminUsers() {
     container.innerHTML = '<div class="text-slate-400">قريباً: إدارة المستخدمين</div>';
 }
 
-// ---- 17. التنقل والنوافذ ----
+// ---- 18. التنقل والنوافذ ----
 async function handleSendMessage() {
     const status = await checkSubscriptionStatus();
     if (status === 'expired' || status === 'no_subscription') {
@@ -945,7 +1043,7 @@ function closeModal(id) {
     document.getElementById(id)?.classList.add('hidden');
 }
 
-// ---- 18. التهيئة والتشغيل ----
+// ---- 19. التهيئة والتشغيل ----
 document.addEventListener('DOMContentLoaded', async function () {
     if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
         db = firebase.firestore();
