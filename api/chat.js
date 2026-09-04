@@ -4,14 +4,12 @@ module.exports = async (req, res) => {
     }
 
     try {
-        // فحص وقراءة الـ body بكل الاحتمالات الممكنة
         let body = req.body;
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (e) {}
         }
         body = body || {};
 
-        // البحث عن النص بأي اسم محتمل يرسله الفرونت إند
         const userMessage = body.message || body.prompt || body.text || body.content || 
                           (body.messages && body.messages[body.messages.length - 1]?.content) ||
                           (body.messages && body.messages[body.messages.length - 1]?.text);
@@ -19,14 +17,11 @@ module.exports = async (req, res) => {
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY مفقود في إعدادات Vercel Environment Variables' });
+            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY مفقود تماماً من Vercel' });
         }
 
         if (!userMessage) {
-            return res.status(400).json({ 
-                error: 'الطلب وصل للسيرفر ولكن حقل النص فارغ أو غير مطابق', 
-                receivedBodyKeys: Object.keys(body) 
-            });
+            return res.status(400).json({ error: 'النص المدخل في الشات فارغ', receivedBody: body });
         }
 
         const contents = [
@@ -45,20 +40,26 @@ module.exports = async (req, res) => {
             }
         );
 
-        const data = await apiResponse.json();
+        const responseText = await apiResponse.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            data = { rawText: responseText };
+        }
 
-        // في حال رفضت جوجل الطلب، سنطبع الخطأ الحقيقي تماماً
         if (!apiResponse.ok) {
-            return res.status(apiResponse.status).json({ 
-                error: 'رفض من Google API', 
-                googleError: data.error || data 
+            // إرجاع الخطأ الخام الذي تقوله جوجل حرفياً للمتصفح
+            return res.status(apiResponse.status).json({
+                googleErrorDetails: data,
+                status: apiResponse.status
             });
         }
 
-        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد من النموذج.';
+        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد نصي من النموذج.';
         return res.status(200).json({ reply: replyText });
 
     } catch (error) {
-        return res.status(500).json({ error: 'خطأ داخلي في السيرفر: ' + error.message });
+        return res.status(500).json({ error: 'خطأ غير متوقع في السيرفر: ' + error.message });
     }
 };
