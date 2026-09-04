@@ -4,50 +4,61 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const { message, prompt, history, messages } = req.body;
-        const userMessage = message || prompt || (messages && messages[messages.length - 1]?.content);
+        // فحص وقراءة الـ body بكل الاحتمالات الممكنة
+        let body = req.body;
+        if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch (e) {}
+        }
+        body = body || {};
+
+        // البحث عن النص بأي اسم محتمل يرسله الفرونت إند
+        const userMessage = body.message || body.prompt || body.text || body.content || 
+                          (body.messages && body.messages[body.messages.length - 1]?.content) ||
+                          (body.messages && body.messages[body.messages.length - 1]?.text);
 
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY غير موجود في Environment Variables على Vercel' });
+            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY مفقود في إعدادات Vercel Environment Variables' });
         }
 
         if (!userMessage) {
-            return res.status(400).json({ error: 'النص المرسل فارغ' });
+            return res.status(400).json({ 
+                error: 'الطلب وصل للسيرفر ولكن حقل النص فارغ أو غير مطابق', 
+                receivedBodyKeys: Object.keys(body) 
+            });
         }
 
         const contents = [
             {
                 role: 'user',
-                parts: [{ text: userMessage }]
+                parts: [{ text: String(userMessage) }]
             }
         ];
 
-        const response = await fetch(
+        const apiResponse = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
             {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents })
             }
         );
 
-        const data = await response.json();
+        const data = await apiResponse.json();
 
-        // إرجاع الخطأ الحقيقي من Google إلى المتصفح مباشرة لنراه
-        if (!response.ok) {
-            return res.status(response.status).json({ 
-                error: `خطأ من جوجل: ${data.error?.message || JSON.stringify(data)}` 
+        // في حال رفضت جوجل الطلب، سنطبع الخطأ الحقيقي تماماً
+        if (!apiResponse.ok) {
+            return res.status(apiResponse.status).json({ 
+                error: 'رفض من Google API', 
+                googleError: data.error || data 
             });
         }
 
-        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد.';
+        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد من النموذج.';
         return res.status(200).json({ reply: replyText });
 
     } catch (error) {
-        return res.status(500).json({ error: 'خطأ بالسيرفر: ' + error.message });
+        return res.status(500).json({ error: 'خطأ داخلي في السيرفر: ' + error.message });
     }
 };
