@@ -1,6 +1,6 @@
 // ==================================================
 // NGym - التطبيق الذكي بالكامل (JavaScript)
-// الإصدار النهائي - جميع التحسينات المطلوبة
+// الإصدار النهائي - المصحح والمطور
 // ==================================================
 
 // ---- 1. البيانات الثابتة والقيم الافتراضية ----
@@ -10,9 +10,9 @@ const DEFAULT_USER_DATA = {
 };
 
 const FALLBACK_WORKOUTS = [
-    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'Chest', location: 'home', met: 3.8 },
-    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'Legs', location: 'home', met: 5 },
-    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'Core', location: 'home', met: 4 }
+    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'chest', location: 'home', met: 3.8 },
+    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'legs', location: 'home', met: 5 },
+    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'abs', location: 'home', met: 4 }
 ];
 
 let exerciseDatabase = [];
@@ -158,8 +158,8 @@ function openModal(modalId) {
             'user-height': u.height, 'input-height': u.height,
             'user-age': u.age, 'input-age': u.age,
             'user-gender': u.gender, 'input-gender': u.gender,
-            'user-activity': u.activity, 'input-activity': u.activity,
-            'user-goal': u.goal, 'input-goal': u.goal,
+            'user-activity': u.activity, 'select-activity': u.activity,
+            'user-goal': u.goal, 'select-goal': u.goal,
             'user-api-key': u.apiKey, 'input-api-key': u.apiKey
         };
         for (let id in fieldMap) {
@@ -176,20 +176,24 @@ function closeModal(modalId) {
     if (modal) modal.classList.add('hidden');
 }
 
+// تعديل دالة التنقل للتوافق مع كلاس hidden-tab
 function switchTab(tabId) {
     try {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-content').forEach(el => {
+            el.classList.add('hidden-tab');
+        });
         const target = document.getElementById(tabId);
-        if (target) target.classList.remove('hidden');
+        if (target) target.classList.remove('hidden-tab');
 
         document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.remove('text-emerald-400');
-            btn.classList.add('text-slate-400');
+            btn.classList.remove('text-emerald-400', 'bg-slate-800', 'shadow');
+            btn.classList.add('hover:text-slate-200');
         });
+        
         const activeBtn = document.querySelector(`[onclick*="${tabId}"]`);
         if (activeBtn) {
-            activeBtn.classList.remove('text-slate-400');
-            activeBtn.classList.add('text-emerald-400');
+            activeBtn.classList.remove('hover:text-slate-200');
+            activeBtn.classList.add('text-emerald-400', 'bg-slate-800', 'shadow');
         }
     } catch (e) {
         console.error("Error switching tab:", e);
@@ -297,12 +301,12 @@ function highlightMuscles() {
     const activeMuscles = JSON.parse(localStorage.getItem('todayTargetedMuscles')) || [];
     document.querySelectorAll('.muscle-group').forEach(el => el.classList.remove('muscle-active'));
     activeMuscles.forEach(m => {
-        const el = document.getElementById(`muscle-${m}`);
+        const el = document.getElementById(`muscle-${m.toLowerCase()}`);
         if (el) el.classList.add('muscle-active');
     });
 }
 
-// ---- 7. دالة مسارات الصور والتمارين ----
+// ---- 7. دالة مسارات الصور والتمارين والفلترة المحدثة ----
 function getExerciseGifUrl(ex) {
     if (ex.gif_url) return ex.gif_url;
     if (ex.id) return `assets/gifs/1/${ex.id}.gif`;
@@ -316,7 +320,7 @@ function filterWorkouts(filter) {
         btn.classList.add('bg-slate-800', 'text-slate-300');
     });
 
-    const activeBtn = document.querySelector(`[data-filter="${filter}"]`) || document.querySelector(`[onclick*="'${filter}'"]`);
+    const activeBtn = document.querySelector(`[data-filter="${filter}"]`);
     if (activeBtn) {
         activeBtn.classList.remove('bg-slate-800', 'text-slate-300');
         activeBtn.classList.add('bg-emerald-500', 'text-slate-950', 'active-filter');
@@ -348,6 +352,8 @@ function renderWorkoutsList() {
         filtered = exerciseDatabase.filter(ex => ex.location === 'home');
     } else if (currentFilter === 'gym') {
         filtered = exerciseDatabase.filter(ex => ex.location === 'gym');
+    } else if (['chest', 'back', 'legs', 'arms', 'abs'].includes(currentFilter)) {
+        filtered = exerciseDatabase.filter(ex => ex.target_muscle && ex.target_muscle.toLowerCase() === currentFilter);
     }
 
     if (filtered.length === 0) {
@@ -395,7 +401,7 @@ function openExerciseModal(id, name, muscle, met) {
     openModal('exercise-modal');
 }
 
-// ---- 8. دعم الصور والصوت بالشات (مع ضغط الصور) ----
+// ---- 8. دعم الصور والصوت بالشات ----
 async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -620,7 +626,6 @@ function setupAdminPanel() {
         if (logoClickCount >= 5) {
             logoClickCount = 0;
             openModal('admin-modal');
-            loadAdminCodes();
         }
     });
 }
@@ -671,13 +676,15 @@ async function updateSubscriptionUI() {
     const status = await checkSubscriptionStatus();
     const banner = document.getElementById('subscription-banner');
     const statusText = document.getElementById('subscription-status');
+    const renewBtn = document.getElementById('renew-btn');
 
     if (status === 'expired') {
         if (banner) banner.classList.remove('hidden');
         if (statusText) statusText.textContent = '⛔ انتهت فترة التجربة - يرجى التجديد';
+        if (renewBtn) renewBtn.classList.remove('hidden');
     } else {
-        if (banner) banner.classList.add('hidden');
         if (statusText) statusText.textContent = '✅ اشتراك فعال';
+        if (renewBtn) renewBtn.classList.add('hidden');
     }
 }
 
@@ -686,7 +693,7 @@ async function generateCode(days) {
     const code = 'NGYM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
     try {
         await dbInstance.collection('codes').doc(code).set({
-            days: days,
+            days: parseInt(days) || 30,
             isUsed: false,
             createdAt: new Date().toISOString()
         });
@@ -717,7 +724,76 @@ async function redeemSubscriptionCode(code) {
     }
 }
 
-// ---- 11. التهيئة وربط المستمعات الشاملة عند التشغيل ----
+// ---- 11. دوال معالجة النماذج (Form Handlers) ----
+function handleOnboardingSubmit(e) {
+    e.preventDefault();
+    const data = {
+        weight: document.getElementById('input-weight').value,
+        targetWeight: document.getElementById('input-target-weight').value,
+        height: document.getElementById('input-height').value,
+        age: document.getElementById('input-age').value,
+        goal: document.getElementById('select-goal').value,
+        activity: document.getElementById('select-activity').value,
+        apiKey: document.getElementById('input-api-key').value
+    };
+    saveUserData(data);
+    closeModal('onboarding-modal');
+}
+
+function handleMealSubmit(e) {
+    e.preventDefault();
+    const cal = parseInt(document.getElementById('meal-calories').value) || 0;
+    const pro = parseInt(document.getElementById('meal-protein').value) || 0;
+    const carb = parseInt(document.getElementById('meal-carbs').value) || 0;
+    const fat = parseInt(document.getElementById('meal-fats').value) || 0;
+
+    localStorage.setItem('todayEatenCalories', (parseInt(localStorage.getItem('todayEatenCalories')) || 0) + cal);
+    localStorage.setItem('todayEatenProtein', (parseInt(localStorage.getItem('todayEatenProtein')) || 0) + pro);
+    localStorage.setItem('todayEatenCarbs', (parseInt(localStorage.getItem('todayEatenCarbs')) || 0) + carb);
+    localStorage.setItem('todayEatenFats', (parseInt(localStorage.getItem('todayEatenFats')) || 0) + fat);
+
+    addXP(15);
+    updateDashboardUI();
+    closeModal('meal-modal');
+}
+
+function handleExerciseSubmit(e) {
+    e.preventDefault();
+    if (!currentExercise) return;
+    const duration = parseInt(document.getElementById('exercise-duration').value) || 10;
+    logExerciseWithDetails(currentExercise.muscle.toLowerCase(), currentExercise.met, duration);
+    closeModal('exercise-modal');
+}
+
+// ---- 12. دوال التنبيهات (Reminders) ----
+function toggleDay(element) {
+    if (element) element.classList.toggle('active');
+}
+
+function saveReminders() {
+    const time = document.getElementById('reminder-time')?.value;
+    if (time) {
+        localStorage.setItem('reminderTime', time);
+        localStorage.setItem('reminderEnabled', 'true');
+        const status = document.getElementById('reminder-status');
+        if (status) status.textContent = `تم تفعيل التنبيه اليومي الساعة ${time}`;
+        alert('✅ تم حفظ التنبيه بنجاح');
+    }
+}
+
+// ---- 13. دوال لوحة المشرف (Admin) ----
+function verifyAdmin() {
+    const password = document.getElementById('admin-password')?.value;
+    if (password === 'NGymAdmin2026') {
+        document.getElementById('admin-login-section').classList.add('hidden');
+        document.getElementById('admin-dashboard-section').classList.remove('hidden');
+        loadAdminCodes();
+    } else {
+        alert('❌ كلمة المرور غير صحيحة');
+    }
+}
+
+// ---- 14. التهيئة وربط المستمعات الشاملة عند التشغيل ----
 document.addEventListener('DOMContentLoaded', function () {
     loadExerciseDatabase();
     updateDashboardUI();
