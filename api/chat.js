@@ -1,10 +1,10 @@
-// هنا نقوم باستقبال الطلبات وتوجيهها للموديل الحديث gemini-3.6-flash
+// api/chat.js
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { messages, systemPrompt, imageBase64 } = req.body;
+    const { userMessage, image, messages, systemPrompt } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey || !apiKey.trim()) {
@@ -14,40 +14,46 @@ export default async function handler(req, res) {
     }
 
     try {
-        const cleanContents = [];
-        const recent = (messages || []).slice(-10);
+        let cleanContents = [];
 
-        for (const msg of recent) {
-            const role = msg.role === 'model' ? 'model' : 'user';
+        // إذا تم إرسال سجل محادثة كاملاً
+        if (messages && Array.isArray(messages) && messages.length > 0) {
+            const recent = messages.slice(-10);
+            for (const msg of recent) {
+                const role = msg.role === 'model' ? 'model' : 'user';
+                const parts = [];
+
+                if (msg.imageBase64 || msg.image) {
+                    const imgData = msg.imageBase64 || msg.image;
+                    const cleanB64 = imgData.includes(',') ? imgData.split(',')[1] : imgData;
+                    parts.push({ 
+                        inlineData: { mimeType: "image/jpeg", data: cleanB64 } 
+                    });
+                }
+
+                if (msg.text && msg.text.trim()) {
+                    parts.push({ text: msg.text.trim() });
+                }
+
+                if (parts.length > 0) {
+                    cleanContents.push({ role, parts });
+                }
+            }
+        } else {
+            // في حالة إرسال رسالة منفردة وصورة من app.js
             const parts = [];
-
-            if (msg.imageBase64) {
-                const cleanB64 = msg.imageBase64.includes(',') 
-                    ? msg.imageBase64.split(',')[1] 
-                    : msg.imageBase64;
+            if (image) {
+                const cleanB64 = image.includes(',') ? image.split(',')[1] : image;
                 parts.push({ 
-                    inlineData: { 
-                        mimeType: "image/jpeg", 
-                        data: cleanB64 
-                    } 
+                    inlineData: { mimeType: "image/jpeg", data: cleanB64 } 
                 });
             }
-
-            if (msg.text && msg.text.trim()) {
-                parts.push({ text: msg.text.trim() });
+            if (userMessage && userMessage.trim()) {
+                parts.push({ text: userMessage.trim() });
             }
-
-            if (parts.length === 0) continue;
-
-            if (cleanContents.length > 0 && cleanContents[cleanContents.length - 1].role === role) {
-                cleanContents[cleanContents.length - 1].parts.push(...parts);
-            } else {
-                cleanContents.push({ role, parts });
+            if (parts.length > 0) {
+                cleanContents.push({ role: 'user', parts });
             }
-        }
-
-        while (cleanContents.length > 0 && cleanContents[0].role !== 'user') {
-            cleanContents.shift();
         }
 
         if (cleanContents.length === 0) {
@@ -56,15 +62,15 @@ export default async function handler(req, res) {
 
         const requestBody = { contents: cleanContents };
 
-        if (systemPrompt && systemPrompt.trim()) {
-            requestBody.systemInstruction = {
-                parts: [{ text: systemPrompt.trim() }]
-            };
-        }
+        // إضافة التعليمات البرمجية أو توجيهات المدرب الشخصي
+        const defaultSystemPrompt = systemPrompt || "أنت كوتش لياقة بدنية وخبير تغذية رياضية ذكي. أجب باللغة العربية بأسلوب مشجع ومختصر ومباشر.";
+        requestBody.systemInstruction = {
+            parts: [{ text: defaultSystemPrompt.trim() }]
+        };
 
-        // هنا تم التحديث إلى الموديل المستهدف gemini-3.6-flash
+        // استخدام نموذج Gemini المعتمد والمتاح رسمياً (gemini-1.5-flash)
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey.trim()}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
