@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
         }
         body = body || {};
 
-        // استخراج النص بأي طريقة ممكنة من الواجهة
+        // استخراج النص من الطلب بأكثر من طريقة لضمان التوافق
         const userMessage = body.message || body.prompt || body.text || body.content || 
                           (body.messages && body.messages[body.messages.length - 1]?.content);
 
@@ -24,7 +24,6 @@ module.exports = async (req, res) => {
             return res.status(400).json({ error: 'النص المدخل فارغ' });
         }
 
-        // الهيكل القياسي المعتمد رسمياً لدى Google للنسخة v1
         const requestBody = {
             contents: [{
                 parts: [{ text: String(userMessage) }]
@@ -52,7 +51,7 @@ module.exports = async (req, res) => {
         const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد من النموذج.';
         return res.status(200).json({ reply: replyText });
 
-    }akah (error) {
+    } catch (error) {
         console.error("Server Error:", error);
         return res.status(500).json({ error: 'خطأ داخلي في السيرفر: ' + error.message });
     }
