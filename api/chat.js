@@ -5,23 +5,38 @@ module.exports = async (req, res) => {
 
     try {
         let body = req.body;
+        
+        // طباعة البيانات القادمة في سجلات Vercel لنراها بوضوح
+        console.log("Received Body from Frontend:", JSON.stringify(body));
+
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (e) {}
         }
         body = body || {};
 
-        const userMessage = body.message || body.prompt || body.text || body.content || 
-                          (body.messages && body.messages[body.messages.length - 1]?.content) ||
-                          (body.messages && body.messages[body.messages.length - 1]?.text);
+        // البحث عن النص بأي اسم محتمل أو حتى أول نص متاح في الكائن
+        let userMessage = body.message || body.prompt || body.text || body.content || body.msg;
+
+        if (!userMessage && typeof body === 'object') {
+            for (let key of Object.keys(body)) {
+                if (typeof body[key] === 'string' && body[key].trim().length > 0) {
+                    userMessage = body[key];
+                    break;
+                }
+            }
+        }
 
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY مفقود تماماً من Vercel' });
+            return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY مفقود في إعدادات Vercel' });
         }
 
         if (!userMessage) {
-            return res.status(400).json({ error: 'النص المدخل في الشات فارغ', receivedBody: body });
+            return res.status(400).json({ 
+                error: 'الطلب وصل ولكن لم يتم العثور على أي حقل نصي صالح في الـ Body',
+                received: body 
+            });
         }
 
         const contents = [
@@ -40,26 +55,21 @@ module.exports = async (req, res) => {
             }
         );
 
-        const responseText = await apiResponse.text();
-        let data;
-        try {
-            data = JSON.parse(responseText);
-        } catch (e) {
-            data = { rawText: responseText };
-        }
+        const data = await apiResponse.json();
 
         if (!apiResponse.ok) {
-            // إرجاع الخطأ الخام الذي تقوله جوجل حرفياً للمتصفح
-            return res.status(apiResponse.status).json({
-                googleErrorDetails: data,
-                status: apiResponse.status
+            console.error("Google API Error Details:", data);
+            return res.status(apiResponse.status).json({ 
+                error: data.error?.message || 'خطأ من خدمة جوجل',
+                details: data 
             });
         }
 
-        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد نصي من النموذج.';
+        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم يتم استلام رد.';
         return res.status(200).json({ reply: replyText });
 
     } catch (error) {
-        return res.status(500).json({ error: 'خطأ غير متوقع في السيرفر: ' + error.message });
+        console.error("Server Exception:", error);
+        return res.status(500).json({ error: 'خطأ بالسيرفر: ' + error.message });
     }
 };
