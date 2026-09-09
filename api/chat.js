@@ -31,8 +31,10 @@ module.exports = async (req, res) => {
         };
 
         // ✅ استخدام النموذج الأحدث gemini-1.5-flash مع النسخة المستقرة v1
-        const apiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
+        // استخدم v1beta ونموذج أحدث
+const apiResponse = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`,
+);
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
