@@ -329,15 +329,66 @@ function filterWorkouts(filter) {
     renderWorkoutsList();
 }
 
-async function loadExerciseDatabase() {
-    try {
-        const response = await fetch('/data/exercises.json');
-        if (!response.ok) throw new Error('فشل تحميل التمارين');
-        exerciseDatabase = await response.json();
-    } catch (error) {
-        exerciseDatabase = FALLBACK_WORKOUTS;
+async function handleSendMessage() {
+    console.log('🚀 بدء إرسال الرسالة...');
+    
+    const input = document.getElementById('chat-input');
+    if (!input) return;
+    
+    const text = input.value.trim();
+    if (!text && !selectedBase64Image) return;
+
+    const currentImage = selectedBase64Image;
+    input.value = '';
+    clearChatImage();
+
+    // عرض رسالة المستخدم
+    renderChatMessage('user', text, true, currentImage);
+
+    // التحقق من الاتصال
+    if (!navigator.onLine) {
+        addToPendingQueue(text);
+        renderChatMessage('assistant', '⚠️ أنت غير متصل بالإنترنت.', false);
+        return;
     }
-    renderWorkoutsList();
+
+    const msgId = renderChatMessage('assistant', 'جاري التفكير...', false);
+
+    try {
+        console.log('📤 إرسال طلب إلى /api/chat...');
+        
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                promptText: text,           // ← المفتاح المهم
+                userMessage: text,          // ← احتياطي
+                imageBase64: currentImage   // ← الصورة
+            })
+        });
+
+        console.log('📥 حالة الاستجابة:', response.status);
+
+        if (!response.ok) {
+            throw new Error('فشل الاتصال بالخادم: ' + response.status);
+        }
+
+        const data = await response.json();
+        console.log('📦 البيانات المستلمة:', data);
+
+        const reply = data.reply || data.message || 'لم يتم استلام رد';
+        
+        updateChatMessage(msgId, reply);
+        saveChatMessage('assistant', reply);
+        console.log('✅ تم عرض الرد بنجاح');
+
+    } catch (e) {
+        console.error('❌ خطأ في handleSendMessage:', e);
+        const fallback = '🎯 واصل الالتزام بخطتك الغذائية!';
+        updateChatMessage(msgId, fallback);
+        saveChatMessage('assistant', fallback);
+    }
+}
 }
 
 function renderWorkoutsList() {
