@@ -1,3 +1,37 @@
+const fs = require('fs');
+const path = require('path');
+
+function loadExerciseCatalog() {
+    try {
+        const exercises = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'data', 'exercises.json'), 'utf8'));
+        const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'assets', 'gifs', 'manifest.json'), 'utf8'));
+        return exercises.map(exercise => {
+            const name = exercise.name_en || exercise.name || exercise.id;
+            const arabicName = exercise.name_ar || exercise.arabic_name || '';
+            return `${exercise.id} | ${arabicName ? `${arabicName} / ` : ''}${name}${manifest[exercise.id] ? ' | GIF available' : ''}`;
+        }).join('\n');
+    } catch (error) {
+        console.error('تعذر تحميل فهرس التمارين للمدرب:', error);
+        return '';
+    }
+}
+
+const exerciseCatalog = loadExerciseCatalog();
+const systemInstruction = `أنت مدرب تمارين ولياقة بدنية. أجب بالعربية عند الإمكان، واحتفظ بأسماء التمارين الإنجليزية عند الحاجة.
+قائمة التمارين ومعرفاتها:
+${exerciseCatalog}
+
+عندما تقترح أو تشرح تمرينًا له GIF متاح، أضف وسمًا في سطر مستقل بالصيغة [GIF: exercise_id] باستخدام المعرف الموجود في القائمة. لا تستخدم هذا الوسم إلا للمعرفات الصحيحة.`;
+
+function buildSystemInstruction(userContext) {
+    if (!userContext) return systemInstruction;
+    return `${systemInstruction}
+
+سياق المستخدم الحالي (بيانات شخصية وسجل اليوم، استخدمه لتخصيص الإجابة ولا تعرضه إلا عند الحاجة):
+${JSON.stringify(userContext)}
+اعتمد على الهدف والنشاط والسعرات الفعلية في تقديم النصيحة، ولا تفترض قيمًا عامة إذا كانت البيانات متاحة.`;
+}
+
 module.exports = async (req, res) => {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -23,6 +57,7 @@ module.exports = async (req, res) => {
                            null;
 
         const imageBase64 = body.image || body.imageBase64 || null;
+        const userContext = body.userContext || null;
 
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
@@ -38,6 +73,7 @@ module.exports = async (req, res) => {
         }
 
         const requestBody = {
+            system_instruction: { parts: [{ text: buildSystemInstruction(userContext) }] },
             contents: [{
                 parts: [{ text: String(userMessage) }]
             }]
@@ -124,6 +160,7 @@ module.exports = async (req, res) => {
         }
 
         const requestBody = {
+            system_instruction: { parts: [{ text: buildSystemInstruction(userContext) }] },
             contents: [{
                 parts: [{ text: String(userMessage) }]
             }]

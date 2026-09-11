@@ -76,6 +76,10 @@
         .chat-message {
             animation: fadeInUp 0.3s ease-out;
         }
+        #chat-messages {
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -249,6 +253,9 @@
                 <h3 class="text-sm font-bold text-slate-200">مكتبة التمارين الرياضية</h3>
                 <span class="text-[11px] text-slate-400">اختر التمرين وسجل جولاتك</span>
             </div>
+
+            <input id="workout-search" type="search" placeholder="ابحث بالعربية أو الإنجليزية..." aria-label="البحث عن تمرين"
+                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
 
             <div class="flex gap-2 overflow-x-auto pb-2" id="filter-tabs">
                 <button data-filter="all" onclick="filterWorkouts('all')" class="filter-btn active-filter bg-emerald-500 text-slate-950 px-3 py-1 rounded-full text-xs font-semibold">الكل</button>
@@ -433,6 +440,24 @@
                     تسجيل التمرين (+25 XP)
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- تكبير صورة GIF الخاصة بالتمرين -->
+    <div id="exercise-gif-modal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4 sm:p-8"
+        role="dialog" aria-modal="true" aria-labelledby="exercise-gif-modal-arabic-name"
+        onclick="if (event.target === this) closeExerciseGifModal()">
+        <div class="relative w-full max-w-5xl max-h-full flex flex-col items-center justify-center gap-4">
+            <button type="button" onclick="closeExerciseGifModal()" aria-label="إغلاق"
+                class="absolute -top-2 right-0 sm:-right-2 z-10 bg-red-600 hover:bg-red-500 text-white w-11 h-11 rounded-full text-3xl leading-none font-bold shadow-lg transition">
+                ×
+            </button>
+            <img id="exercise-gif-modal-image" src="" alt=""
+                class="max-h-[75vh] max-w-full w-auto rounded-2xl border-2 border-emerald-500/50 shadow-2xl object-contain">
+            <div class="text-center px-12">
+                <h3 id="exercise-gif-modal-arabic-name" dir="rtl" class="text-xl sm:text-2xl font-bold text-white"></h3>
+                <p id="exercise-gif-modal-english-name" class="text-sm sm:text-base text-slate-300 mt-1"></p>
+            </div>
         </div>
     </div>
 

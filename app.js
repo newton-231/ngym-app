@@ -170,6 +170,37 @@ function calculateNutritionTargets() {
     return { calories: Math.round(calories), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) };
 }
 
+function getCoachContext() {
+    const user = getUserData();
+    const targets = calculateNutritionTargets();
+    const bmr = Math.round((10 * user.weight) + (6.25 * user.height) - (5 * user.age) + (user.gender === 'male' ? 5 : -161));
+    const tdee = Math.round(bmr * user.activity);
+    let targetedMuscles = [];
+    try {
+        targetedMuscles = JSON.parse(localStorage.getItem('todayTargetedMuscles') || '[]');
+        if (!Array.isArray(targetedMuscles)) targetedMuscles = [];
+    } catch (error) {
+        console.warn('تعذر قراءة عضلات اليوم:', error);
+    }
+    const daily = {
+        caloriesEaten: parseInt(localStorage.getItem('todayEatenCalories')) || 0,
+        proteinEaten: parseInt(localStorage.getItem('todayEatenProtein')) || 0,
+        carbsEaten: parseInt(localStorage.getItem('todayEatenCarbs')) || 0,
+        fatsEaten: parseInt(localStorage.getItem('todayEatenFats')) || 0,
+        caloriesBurned: parseInt(localStorage.getItem('todayBurnedCalories')) || 0,
+        targetedMuscles
+    };
+    return {
+        profile: {
+            weight: user.weight, targetWeight: user.targetWeight, height: user.height,
+            age: user.age, gender: user.gender, activityMultiplier: user.activity,
+            goal: user.goal, bmr, tdee
+        },
+        targets,
+        daily
+    };
+}
+
 function addXP(amt) {
     let xp = (parseInt(localStorage.getItem('userXP')) || 0) + amt;
     localStorage.setItem('userXP', xp);
@@ -257,9 +288,47 @@ function getExerciseGifUrl(ex) {
     return gifPath ? `/assets/gifs/${gifPath}` : '/assets/gifs/default.gif';
 }
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function getExerciseArabicName(ex) {
+    return ex.name_ar || ex.arabic_name || `تمرين ${ex.name || ex.id || ''}`.trim();
+}
+
+function getExerciseEnglishName(ex) {
+    return ex.name_en || ex.name || ex.id || '';
+}
+
 function handleGifError(imgElement) {
     imgElement.onerror = null;
     imgElement.src = '/assets/gifs/default.gif';
+}
+
+function openExerciseGifModal(exerciseId) {
+    const exercise = exerciseDatabase.find(item => item.id === exerciseId);
+    if (!exercise) return;
+
+    const modal = document.getElementById('exercise-gif-modal');
+    const image = document.getElementById('exercise-gif-modal-image');
+    const arabicName = document.getElementById('exercise-gif-modal-arabic-name');
+    const englishName = document.getElementById('exercise-gif-modal-english-name');
+    if (!modal || !image || !arabicName || !englishName) return;
+
+    image.src = getExerciseGifUrl(exercise);
+    image.alt = getExerciseArabicName(exercise);
+    arabicName.textContent = getExerciseArabicName(exercise);
+    englishName.textContent = getExerciseEnglishName(exercise);
+    modal.classList.remove('hidden');
+}
+
+function closeExerciseGifModal() {
+    const modal = document.getElementById('exercise-gif-modal');
+    const image = document.getElementById('exercise-gif-modal-image');
+    if (modal) modal.classList.add('hidden');
+    if (image) image.removeAttribute('src');
 }
 
 function filterWorkouts(filter) {
@@ -301,15 +370,31 @@ function renderWorkoutsList() {
     const container = document.getElementById('workouts-list');
     if (!container) return;
     let filtered = exerciseDatabase;
+    const searchTerm = (document.getElementById('workout-search')?.value || '').trim().toLocaleLowerCase();
+    if (searchTerm) {
+        filtered = filtered.filter(ex => [
+            ex.id, ex.name, ex.name_en, ex.name_ar, ex.arabic_name,
+            ...(ex.primaryMuscles || [])
+        ].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(searchTerm)));
+    }
     if (currentFilter === 'favorites') {
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-        filtered = exerciseDatabase.filter(ex => favs.includes(ex.id));
+        filtered = filtered.filter(ex => favs.includes(ex.id));
     } else if (currentFilter === 'home') {
-        filtered = exerciseDatabase.filter(ex => ex.location === 'home');
+        filtered = filtered.filter(ex => ['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
     } else if (currentFilter === 'gym') {
-        filtered = exerciseDatabase.filter(ex => ex.location === 'gym');
+        filtered = filtered.filter(ex => !['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
     } else if (['chest', 'back', 'legs', 'arms', 'abs'].includes(currentFilter)) {
-        filtered = exerciseDatabase.filter(ex => ex.target_muscle && ex.target_muscle.toLowerCase() === currentFilter);
+        const muscleAliases = {
+            chest: ['chest', 'pectorals'],
+            back: ['lats', 'middle back', 'lower back', 'traps'],
+            legs: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'],
+            arms: ['biceps', 'triceps', 'forearms'],
+            abs: ['abdominals']
+        };
+        filtered = filtered.filter(ex =>
+            (ex.primaryMuscles || []).some(muscle => muscleAliases[currentFilter].includes(muscle.toLowerCase()))
+        );
     }
     if (filtered.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-8">لا توجد تمارين مطابقة</div>';
@@ -317,22 +402,25 @@ function renderWorkoutsList() {
     }
     container.innerHTML = filtered.map(ex => {
         const isFav = JSON.parse(localStorage.getItem('favorites') || '[]').includes(ex.id);
-        const displayName = ex.name_ar || ex.name || 'تمرين';
+        const arabicName = getExerciseArabicName(ex);
+        const englishName = getExerciseEnglishName(ex);
+        const muscles = (ex.primaryMuscles || []).join(', ');
         const imgUrl = getExerciseGifUrl(ex);
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm">
-            <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0">
-                <img src="${imgUrl}" alt="${displayName}" class="w-full h-full object-cover" onerror="handleGifError(this)">
-            </div>
+            <button type="button" onclick="openExerciseGifModal('${escapeHtml(ex.id)}')" aria-label="تكبير صورة ${escapeHtml(arabicName)}" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0 cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <img src="${imgUrl}" alt="${escapeHtml(arabicName)}" class="w-full h-full object-cover" onerror="handleGifError(this)">
+            </button>
             <div class="flex-1 min-w-0">
-                <h4 class="text-xs font-bold text-slate-200 truncate">${displayName}</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${ex.target_muscle || ''}</p>
+                <h4 dir="rtl" class="text-sm font-bold text-slate-200 truncate">${escapeHtml(arabicName)}</h4>
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(englishName)}</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(muscles)}</p>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
                 <button onclick="toggleFavorite('${ex.id}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} text-sm p-1">
                     <i class="fa-solid fa-star"></i>
                 </button>
-                <button onclick="openExerciseModal('${ex.id}', '${displayName}', '${ex.target_muscle}', ${ex.met || 5})" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
+                <button onclick="openExerciseModal('${escapeHtml(ex.id)}', '${escapeHtml(arabicName)}', '${escapeHtml(muscles)}', 5)" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
                     تسجيل
                 </button>
             </div>
@@ -390,7 +478,8 @@ async function handleSendMessage() {
             body: JSON.stringify({ 
                 promptText: text,
                 userMessage: text,
-                imageBase64: currentImage
+                imageBase64: currentImage,
+                userContext: getCoachContext()
             })
         });
 
@@ -487,9 +576,9 @@ function renderChatMessage(sender, text, save = true, image = null) {
     const imgHTML = image ? `<img src="${image}" class="max-w-full h-auto rounded-lg mb-2 border border-slate-700"/>` : '';
     container.insertAdjacentHTML('beforeend', `
         <div id="${id}" class="flex ${isUser ? 'justify-end' : 'justify-start'} mb-2">
-            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-xs leading-relaxed shadow-sm">
+            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-sm leading-relaxed shadow-sm">
                 ${imgHTML}
-                <div>${text}</div>
+                <div data-message-content>${formatChatText(text)}</div>
             </div>
         </div>
     `);
@@ -501,9 +590,18 @@ function renderChatMessage(sender, text, save = true, image = null) {
 function updateChatMessage(id, newText) {
     const el = document.getElementById(id);
     if (el) {
-        const txtDiv = el.querySelector('div > div:last-child') || el.querySelector('div');
-        if (txtDiv) txtDiv.textContent = newText;
+        const txtDiv = el.querySelector('[data-message-content]');
+        if (txtDiv) txtDiv.innerHTML = formatChatText(newText);
     }
+}
+
+function formatChatText(text) {
+    const escaped = escapeHtml(text).replace(/\r?\n/g, '<br>');
+    return escaped.replace(/\[GIF:\s*([A-Za-z0-9_-]+)\s*\]/g, (match, id) => {
+        const gifUrl = getExerciseGifUrl({ id });
+        if (gifUrl === '/assets/gifs/default.gif') return match;
+        return `<img src="${gifUrl}" alt="GIF ${escapeHtml(id)}" class="block max-w-full h-auto rounded-lg my-2 border border-slate-700" loading="lazy" onerror="this.remove()">`;
+    });
 }
 
 function addToPendingQueue(text) {
@@ -523,7 +621,7 @@ async function retryPendingMessages() {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ promptText: msg, userMessage: msg })
+                body: JSON.stringify({ promptText: msg, userMessage: msg, userContext: getCoachContext() })
             });
             if (!res.ok) { failedMessages.push(msg); continue; }
             const data = await res.json();
@@ -576,16 +674,21 @@ function setupAdminPanel() {
 async function loadAdminCodes() {
     const container = document.getElementById('codes-list');
     if (!container) return;
-    if (!dbInstance) { container.innerHTML = '<div class="text-amber-400">⚠️ Firebase غير متصل</div>'; return; }
+    const token = sessionStorage.getItem('adminToken');
+    if (!token) return;
     try {
-        const snapshot = await dbInstance.collection('codes').orderBy('createdAt', 'desc').limit(20).get();
-        if (snapshot.empty) { container.innerHTML = '<div class="text-slate-400">لا توجد أكواد</div>'; return; }
-        container.innerHTML = snapshot.docs.map(doc => {
-            const data = doc.data();
+        const response = await fetch('/api/admin?action=list', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('فشل تحميل الأكواد');
+        const codes = await response.json();
+        if (codes.length === 0) { container.innerHTML = '<div class="text-slate-400">لا توجد أكواد</div>'; return; }
+        container.innerHTML = codes.map(code => {
+            const data = code.data;
             const used = data.isUsed ? 'مستخدم ✅' : 'فعال 🔓';
             const color = data.isUsed ? 'text-emerald-400' : 'text-amber-400';
             return `<div class="flex justify-between border-b border-slate-800 py-1 text-xs">
-                <span class="font-mono text-emerald-400">${doc.id}</span>
+                <span class="font-mono text-emerald-400">${escapeHtml(code.id)}</span>
                 <span class="${color}">${used}</span>
                 <span class="text-slate-400">${data.days || 30} يوم</span>
             </div>`;
@@ -615,15 +718,20 @@ async function updateSubscriptionUI() {
 }
 
 async function generateCode(days) {
-    if (!dbInstance) { alert("❌ Firebase غير متصل."); return; }
-    const code = 'NGYM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const token = sessionStorage.getItem('adminToken');
+    if (!token) { alert("❌ يجب تسجيل الدخول أولاً."); return; }
     try {
-        await dbInstance.collection('codes').doc(code).set({
-            days: parseInt(days) || 30, isUsed: false, createdAt: new Date().toISOString()
+        const response = await fetch('/api/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ action: 'generate', days: parseInt(days) || 30 })
         });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'فشل إنشاء الكود');
+        const code = result.code;
         alert(`✅ كود جديد:\n${code}`);
         loadAdminCodes();
-    } catch (e) { alert("حدث خطأ"); }
+    } catch (e) { alert(e.message || "حدث خطأ"); }
 }
 
 async function redeemSubscriptionCode(code) {
@@ -689,21 +797,28 @@ function saveReminders() {
     }
 }
 
-function verifyAdmin() {
+async function verifyAdmin() {
     const password = document.getElementById('admin-password')?.value;
-    if (password === 'NGymAdmin2026') {
+    try {
+        const response = await fetch('/api/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'login', password })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'كلمة المرور غير صحيحة');
+        sessionStorage.setItem('adminToken', result.token);
         document.getElementById('admin-login-section').classList.add('hidden');
         document.getElementById('admin-dashboard-section').classList.remove('hidden');
         loadAdminCodes();
-    } else { alert('❌ كلمة المرور غير صحيحة'); }
+    } catch (error) { alert(`❌ ${error.message}`); }
 }
 
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM loaded');
-    loadExerciseDatabase();
+    loadExerciseDatabase().then(loadChatHistory);
     updateDashboardUI();
-    loadChatHistory();
     loadReminderSettings();
     startReminderChecker();
     setupAdminPanel();
@@ -716,6 +831,10 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('send-chat-btn')?.addEventListener('click', handleSendMessage);
     document.getElementById('chat-input')?.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') handleSendMessage();
+    });
+    document.getElementById('workout-search')?.addEventListener('input', renderWorkoutsList);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeExerciseGifModal();
     });
     document.getElementById('renew-btn')?.addEventListener('click', function() {
         const code = prompt('أدخل كود التفعيل:');
