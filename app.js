@@ -373,18 +373,28 @@ function renderWorkoutsList() {
     const searchTerm = (document.getElementById('workout-search')?.value || '').trim().toLocaleLowerCase();
     if (searchTerm) {
         filtered = filtered.filter(ex => [
-            ex.id, ex.name, ex.name_en, ex.name_ar, ex.arabic_name
+            ex.id, ex.name, ex.name_en, ex.name_ar, ex.arabic_name,
+            ...(ex.primaryMuscles || [])
         ].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(searchTerm)));
     }
     if (currentFilter === 'favorites') {
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-        filtered = exerciseDatabase.filter(ex => favs.includes(ex.id));
+        filtered = filtered.filter(ex => favs.includes(ex.id));
     } else if (currentFilter === 'home') {
-        filtered = exerciseDatabase.filter(ex => ex.location === 'home');
+        filtered = filtered.filter(ex => ['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
     } else if (currentFilter === 'gym') {
-        filtered = exerciseDatabase.filter(ex => ex.location === 'gym');
+        filtered = filtered.filter(ex => !['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
     } else if (['chest', 'back', 'legs', 'arms', 'abs'].includes(currentFilter)) {
-        filtered = exerciseDatabase.filter(ex => ex.target_muscle && ex.target_muscle.toLowerCase() === currentFilter);
+        const muscleAliases = {
+            chest: ['chest', 'pectorals'],
+            back: ['lats', 'middle back', 'lower back', 'traps'],
+            legs: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'],
+            arms: ['biceps', 'triceps', 'forearms'],
+            abs: ['abdominals']
+        };
+        filtered = filtered.filter(ex =>
+            (ex.primaryMuscles || []).some(muscle => muscleAliases[currentFilter].includes(muscle.toLowerCase()))
+        );
     }
     if (filtered.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-8">لا توجد تمارين مطابقة</div>';
@@ -394,6 +404,7 @@ function renderWorkoutsList() {
         const isFav = JSON.parse(localStorage.getItem('favorites') || '[]').includes(ex.id);
         const arabicName = getExerciseArabicName(ex);
         const englishName = getExerciseEnglishName(ex);
+        const muscles = (ex.primaryMuscles || []).join(', ');
         const imgUrl = getExerciseGifUrl(ex);
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm">
@@ -403,13 +414,13 @@ function renderWorkoutsList() {
             <div class="flex-1 min-w-0">
                 <h4 dir="rtl" class="text-sm font-bold text-slate-200 truncate">${escapeHtml(arabicName)}</h4>
                 <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(englishName)}</p>
-                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${ex.target_muscle || ''}</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(muscles)}</p>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
                 <button onclick="toggleFavorite('${ex.id}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} text-sm p-1">
                     <i class="fa-solid fa-star"></i>
                 </button>
-                <button onclick="openExerciseModal('${ex.id}', '${escapeHtml(arabicName)}', '${ex.target_muscle || ''}', ${ex.met || 5})" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
+                <button onclick="openExerciseModal('${escapeHtml(ex.id)}', '${escapeHtml(arabicName)}', '${escapeHtml(muscles)}', 5)" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
                     تسجيل
                 </button>
             </div>
@@ -663,16 +674,21 @@ function setupAdminPanel() {
 async function loadAdminCodes() {
     const container = document.getElementById('codes-list');
     if (!container) return;
-    if (!dbInstance) { container.innerHTML = '<div class="text-amber-400">⚠️ Firebase غير متصل</div>'; return; }
+    const token = sessionStorage.getItem('adminToken');
+    if (!token) return;
     try {
-        const snapshot = await dbInstance.collection('codes').orderBy('createdAt', 'desc').limit(20).get();
-        if (snapshot.empty) { container.innerHTML = '<div class="text-slate-400">لا توجد أكواد</div>'; return; }
-        container.innerHTML = snapshot.docs.map(doc => {
-            const data = doc.data();
+        const response = await fetch('/api/admin?action=list', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('فشل تحميل الأكواد');
+        const codes = await response.json();
+        if (codes.length === 0) { container.innerHTML = '<div class="text-slate-400">لا توجد أكواد</div>'; return; }
+        container.innerHTML = codes.map(code => {
+            const data = code.data;
             const used = data.isUsed ? 'مستخدم ✅' : 'فعال 🔓';
             const color = data.isUsed ? 'text-emerald-400' : 'text-amber-400';
             return `<div class="flex justify-between border-b border-slate-800 py-1 text-xs">
-                <span class="font-mono text-emerald-400">${doc.id}</span>
+                <span class="font-mono text-emerald-400">${escapeHtml(code.id)}</span>
                 <span class="${color}">${used}</span>
                 <span class="text-slate-400">${data.days || 30} يوم</span>
             </div>`;
@@ -702,15 +718,20 @@ async function updateSubscriptionUI() {
 }
 
 async function generateCode(days) {
-    if (!dbInstance) { alert("❌ Firebase غير متصل."); return; }
-    const code = 'NGYM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const token = sessionStorage.getItem('adminToken');
+    if (!token) { alert("❌ يجب تسجيل الدخول أولاً."); return; }
     try {
-        await dbInstance.collection('codes').doc(code).set({
-            days: parseInt(days) || 30, isUsed: false, createdAt: new Date().toISOString()
+        const response = await fetch('/api/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ action: 'generate', days: parseInt(days) || 30 })
         });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'فشل إنشاء الكود');
+        const code = result.code;
         alert(`✅ كود جديد:\n${code}`);
         loadAdminCodes();
-    } catch (e) { alert("حدث خطأ"); }
+    } catch (e) { alert(e.message || "حدث خطأ"); }
 }
 
 async function redeemSubscriptionCode(code) {
@@ -776,13 +797,21 @@ function saveReminders() {
     }
 }
 
-function verifyAdmin() {
+async function verifyAdmin() {
     const password = document.getElementById('admin-password')?.value;
-    if (password === 'NGymAdmin2026') {
+    try {
+        const response = await fetch('/api/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'login', password })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'كلمة المرور غير صحيحة');
+        sessionStorage.setItem('adminToken', result.token);
         document.getElementById('admin-login-section').classList.add('hidden');
         document.getElementById('admin-dashboard-section').classList.remove('hidden');
         loadAdminCodes();
-    } else { alert('❌ كلمة المرور غير صحيحة'); }
+    } catch (error) { alert(`❌ ${error.message}`); }
 }
 
 // ---- Initialization ----
