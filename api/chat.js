@@ -23,6 +23,15 @@ ${exerciseCatalog}
 
 عندما تقترح أو تشرح تمرينًا له GIF متاح، أضف وسمًا في سطر مستقل بالصيغة [GIF: exercise_id] باستخدام المعرف الموجود في القائمة. لا تستخدم هذا الوسم إلا للمعرفات الصحيحة.`;
 
+function buildSystemInstruction(userContext) {
+    if (!userContext) return systemInstruction;
+    return `${systemInstruction}
+
+سياق المستخدم الحالي (بيانات شخصية وسجل اليوم، استخدمه لتخصيص الإجابة ولا تعرضه إلا عند الحاجة):
+${JSON.stringify(userContext)}
+اعتمد على الهدف والنشاط والسعرات الفعلية في تقديم النصيحة، ولا تفترض قيمًا عامة إذا كانت البيانات متاحة.`;
+}
+
 module.exports = async (req, res) => {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -48,6 +57,7 @@ module.exports = async (req, res) => {
                            null;
 
         const imageBase64 = body.image || body.imageBase64 || null;
+        const userContext = body.userContext || null;
 
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
@@ -63,7 +73,7 @@ module.exports = async (req, res) => {
         }
 
         const requestBody = {
-            system_instruction: { parts: [{ text: systemInstruction }] },
+            system_instruction: { parts: [{ text: buildSystemInstruction(userContext) }] },
             contents: [{
                 parts: [{ text: String(userMessage) }]
             }]
@@ -150,7 +160,7 @@ module.exports = async (req, res) => {
         }
 
         const requestBody = {
-            system_instruction: { parts: [{ text: systemInstruction }] },
+            system_instruction: { parts: [{ text: buildSystemInstruction(userContext) }] },
             contents: [{
                 parts: [{ text: String(userMessage) }]
             }]

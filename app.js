@@ -170,6 +170,37 @@ function calculateNutritionTargets() {
     return { calories: Math.round(calories), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) };
 }
 
+function getCoachContext() {
+    const user = getUserData();
+    const targets = calculateNutritionTargets();
+    const bmr = Math.round((10 * user.weight) + (6.25 * user.height) - (5 * user.age) + (user.gender === 'male' ? 5 : -161));
+    const tdee = Math.round(bmr * user.activity);
+    let targetedMuscles = [];
+    try {
+        targetedMuscles = JSON.parse(localStorage.getItem('todayTargetedMuscles') || '[]');
+        if (!Array.isArray(targetedMuscles)) targetedMuscles = [];
+    } catch (error) {
+        console.warn('تعذر قراءة عضلات اليوم:', error);
+    }
+    const daily = {
+        caloriesEaten: parseInt(localStorage.getItem('todayEatenCalories')) || 0,
+        proteinEaten: parseInt(localStorage.getItem('todayEatenProtein')) || 0,
+        carbsEaten: parseInt(localStorage.getItem('todayEatenCarbs')) || 0,
+        fatsEaten: parseInt(localStorage.getItem('todayEatenFats')) || 0,
+        caloriesBurned: parseInt(localStorage.getItem('todayBurnedCalories')) || 0,
+        targetedMuscles
+    };
+    return {
+        profile: {
+            weight: user.weight, targetWeight: user.targetWeight, height: user.height,
+            age: user.age, gender: user.gender, activityMultiplier: user.activity,
+            goal: user.goal, bmr, tdee
+        },
+        targets,
+        daily
+    };
+}
+
 function addXP(amt) {
     let xp = (parseInt(localStorage.getItem('userXP')) || 0) + amt;
     localStorage.setItem('userXP', xp);
@@ -412,7 +443,8 @@ async function handleSendMessage() {
             body: JSON.stringify({ 
                 promptText: text,
                 userMessage: text,
-                imageBase64: currentImage
+                imageBase64: currentImage,
+                userContext: getCoachContext()
             })
         });
 
@@ -509,7 +541,7 @@ function renderChatMessage(sender, text, save = true, image = null) {
     const imgHTML = image ? `<img src="${image}" class="max-w-full h-auto rounded-lg mb-2 border border-slate-700"/>` : '';
     container.insertAdjacentHTML('beforeend', `
         <div id="${id}" class="flex ${isUser ? 'justify-end' : 'justify-start'} mb-2">
-            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-xs leading-relaxed shadow-sm">
+            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-sm leading-relaxed shadow-sm">
                 ${imgHTML}
                 <div data-message-content>${formatChatText(text)}</div>
             </div>
@@ -554,7 +586,7 @@ async function retryPendingMessages() {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ promptText: msg, userMessage: msg })
+                body: JSON.stringify({ promptText: msg, userMessage: msg, userContext: getCoachContext() })
             });
             if (!res.ok) { failedMessages.push(msg); continue; }
             const data = await res.json();
