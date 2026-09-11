@@ -257,6 +257,20 @@ function getExerciseGifUrl(ex) {
     return gifPath ? `/assets/gifs/${gifPath}` : '/assets/gifs/default.gif';
 }
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function getExerciseArabicName(ex) {
+    return ex.name_ar || ex.arabic_name || `تمرين ${ex.name || ex.id || ''}`.trim();
+}
+
+function getExerciseEnglishName(ex) {
+    return ex.name_en || ex.name || ex.id || '';
+}
+
 function handleGifError(imgElement) {
     imgElement.onerror = null;
     imgElement.src = '/assets/gifs/default.gif';
@@ -301,6 +315,12 @@ function renderWorkoutsList() {
     const container = document.getElementById('workouts-list');
     if (!container) return;
     let filtered = exerciseDatabase;
+    const searchTerm = (document.getElementById('workout-search')?.value || '').trim().toLocaleLowerCase();
+    if (searchTerm) {
+        filtered = filtered.filter(ex => [
+            ex.id, ex.name, ex.name_en, ex.name_ar, ex.arabic_name
+        ].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(searchTerm)));
+    }
     if (currentFilter === 'favorites') {
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
         filtered = exerciseDatabase.filter(ex => favs.includes(ex.id));
@@ -317,22 +337,24 @@ function renderWorkoutsList() {
     }
     container.innerHTML = filtered.map(ex => {
         const isFav = JSON.parse(localStorage.getItem('favorites') || '[]').includes(ex.id);
-        const displayName = ex.name_ar || ex.name || 'تمرين';
+        const arabicName = getExerciseArabicName(ex);
+        const englishName = getExerciseEnglishName(ex);
         const imgUrl = getExerciseGifUrl(ex);
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm">
             <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0">
-                <img src="${imgUrl}" alt="${displayName}" class="w-full h-full object-cover" onerror="handleGifError(this)">
+                <img src="${imgUrl}" alt="${escapeHtml(arabicName)}" class="w-full h-full object-cover" onerror="handleGifError(this)">
             </div>
             <div class="flex-1 min-w-0">
-                <h4 class="text-xs font-bold text-slate-200 truncate">${displayName}</h4>
+                <h4 dir="rtl" class="text-sm font-bold text-slate-200 truncate">${escapeHtml(arabicName)}</h4>
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(englishName)}</p>
                 <p class="text-[10px] text-slate-400 mt-0.5 truncate">${ex.target_muscle || ''}</p>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
                 <button onclick="toggleFavorite('${ex.id}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} text-sm p-1">
                     <i class="fa-solid fa-star"></i>
                 </button>
-                <button onclick="openExerciseModal('${ex.id}', '${displayName}', '${ex.target_muscle}', ${ex.met || 5})" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
+                <button onclick="openExerciseModal('${ex.id}', '${escapeHtml(arabicName)}', '${ex.target_muscle || ''}', ${ex.met || 5})" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
                     تسجيل
                 </button>
             </div>
@@ -489,7 +511,7 @@ function renderChatMessage(sender, text, save = true, image = null) {
         <div id="${id}" class="flex ${isUser ? 'justify-end' : 'justify-start'} mb-2">
             <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-xs leading-relaxed shadow-sm">
                 ${imgHTML}
-                <div>${text}</div>
+                <div data-message-content>${formatChatText(text)}</div>
             </div>
         </div>
     `);
@@ -501,9 +523,18 @@ function renderChatMessage(sender, text, save = true, image = null) {
 function updateChatMessage(id, newText) {
     const el = document.getElementById(id);
     if (el) {
-        const txtDiv = el.querySelector('div > div:last-child') || el.querySelector('div');
-        if (txtDiv) txtDiv.textContent = newText;
+        const txtDiv = el.querySelector('[data-message-content]');
+        if (txtDiv) txtDiv.innerHTML = formatChatText(newText);
     }
+}
+
+function formatChatText(text) {
+    const escaped = escapeHtml(text).replace(/\r?\n/g, '<br>');
+    return escaped.replace(/\[GIF:\s*([A-Za-z0-9_-]+)\s*\]/g, (match, id) => {
+        const gifUrl = getExerciseGifUrl({ id });
+        if (gifUrl === '/assets/gifs/default.gif') return match;
+        return `<img src="${gifUrl}" alt="GIF ${escapeHtml(id)}" class="block max-w-full h-auto rounded-lg my-2 border border-slate-700" loading="lazy" onerror="this.remove()">`;
+    });
 }
 
 function addToPendingQueue(text) {
@@ -701,9 +732,8 @@ function verifyAdmin() {
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM loaded');
-    loadExerciseDatabase();
+    loadExerciseDatabase().then(loadChatHistory);
     updateDashboardUI();
-    loadChatHistory();
     loadReminderSettings();
     startReminderChecker();
     setupAdminPanel();
@@ -717,6 +747,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('chat-input')?.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') handleSendMessage();
     });
+    document.getElementById('workout-search')?.addEventListener('input', renderWorkoutsList);
     document.getElementById('renew-btn')?.addEventListener('click', function() {
         const code = prompt('أدخل كود التفعيل:');
         if (code) redeemSubscriptionCode(code);
