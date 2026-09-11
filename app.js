@@ -252,15 +252,15 @@ function highlightMuscles() {
 
 // هنا نقوم باستخراج اسم صورة التمرين وتجهيز المسار المبدئي في المجلد 1
 function getExerciseGifUrl(ex) {
-    if (!ex) return 'assets/gifs/default.gif';
+    if (!ex) return '/assets/gifs/default.gif';
     let fileName = '';
     if (ex.gif_url) {
         fileName = ex.gif_url.split('/').pop();
     } else if (ex.id) {
         fileName = `${ex.id}.gif`;
     }
-    if (!fileName) return 'assets/gifs/default.gif';
-    return `assets/gifs/1/${fileName}`;
+    if (!fileName) return '/assets/gifs/default.gif';
+    return `/assets/gifs/1/${fileName}`;
 }
 
 // هنا نقوم بالبحث التلقائي في المجلدات (1 -> 2 -> 3) في حال عدم وجود الصورة بالمجلد الأول
@@ -268,7 +268,7 @@ function handleGifError(imgElement) {
     const fileName = imgElement.getAttribute('data-filename');
     if (!fileName) {
         imgElement.onerror = null;
-        imgElement.src = 'assets/gifs/default.gif';
+        imgElement.src = '/assets/gifs/default.gif';
         return;
     }
 
@@ -278,11 +278,11 @@ function handleGifError(imgElement) {
     if (currentFolder < maxFolders) {
         currentFolder++;
         imgElement.setAttribute('data-folder', currentFolder);
-        imgElement.src = `assets/gifs/${currentFolder}/${fileName}`;
+        imgElement.src = `/assets/gifs/${currentFolder}/${fileName}`;
     } else {
         // إذا جربنا المجلدات 1 و 2 و 3 ولم نجد الملف، نعرض الصورة الافتراضية
         imgElement.onerror = null;
-        imgElement.src = 'assets/gifs/default.gif';
+        imgElement.src = '/assets/gifs/default.gif';
     }
 }
 
