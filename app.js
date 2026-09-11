@@ -307,6 +307,30 @@ function handleGifError(imgElement) {
     imgElement.src = '/assets/gifs/default.gif';
 }
 
+function openExerciseGifModal(exerciseId) {
+    const exercise = exerciseDatabase.find(item => item.id === exerciseId);
+    if (!exercise) return;
+
+    const modal = document.getElementById('exercise-gif-modal');
+    const image = document.getElementById('exercise-gif-modal-image');
+    const arabicName = document.getElementById('exercise-gif-modal-arabic-name');
+    const englishName = document.getElementById('exercise-gif-modal-english-name');
+    if (!modal || !image || !arabicName || !englishName) return;
+
+    image.src = getExerciseGifUrl(exercise);
+    image.alt = getExerciseArabicName(exercise);
+    arabicName.textContent = getExerciseArabicName(exercise);
+    englishName.textContent = getExerciseEnglishName(exercise);
+    modal.classList.remove('hidden');
+}
+
+function closeExerciseGifModal() {
+    const modal = document.getElementById('exercise-gif-modal');
+    const image = document.getElementById('exercise-gif-modal-image');
+    if (modal) modal.classList.add('hidden');
+    if (image) image.removeAttribute('src');
+}
+
 function filterWorkouts(filter) {
     currentFilter = filter;
     document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -373,9 +397,9 @@ function renderWorkoutsList() {
         const imgUrl = getExerciseGifUrl(ex);
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm">
-            <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0">
+            <button type="button" onclick="openExerciseGifModal('${escapeHtml(ex.id)}')" aria-label="تكبير صورة ${escapeHtml(arabicName)}" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0 cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 <img src="${imgUrl}" alt="${escapeHtml(arabicName)}" class="w-full h-full object-cover" onerror="handleGifError(this)">
-            </div>
+            </button>
             <div class="flex-1 min-w-0">
                 <h4 dir="rtl" class="text-sm font-bold text-slate-200 truncate">${escapeHtml(arabicName)}</h4>
                 <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(englishName)}</p>
@@ -780,6 +804,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (e.key === 'Enter') handleSendMessage();
     });
     document.getElementById('workout-search')?.addEventListener('input', renderWorkoutsList);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeExerciseGifModal();
+    });
     document.getElementById('renew-btn')?.addEventListener('click', function() {
         const code = prompt('أدخل كود التفعيل:');
         if (code) redeemSubscriptionCode(code);
