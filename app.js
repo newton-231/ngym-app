@@ -79,7 +79,7 @@ function saveUserData(data) {
 
 function checkDailyReset() {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toLocaleDateString('sv');
         if (localStorage.getItem('lastActiveDate') !== today) {
             localStorage.setItem('todayEatenCalories', 0);
             localStorage.setItem('todayEatenProtein', 0);
