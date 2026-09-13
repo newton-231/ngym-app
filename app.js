@@ -124,6 +124,7 @@ function openModal(modalId) {
         const fieldMap = {
             'input-weight': u.weight, 'input-target-weight': u.targetWeight,
             'input-height': u.height, 'input-age': u.age,
+            'input-gender': u.gender,
             'select-activity': u.activity, 'select-goal': u.goal,
             'input-api-key': u.apiKey
         };
@@ -131,6 +132,8 @@ function openModal(modalId) {
             const el = document.getElementById(id);
             if (el) el.value = fieldMap[id];
         }
+        const genderButton = document.querySelector(`.gender-btn[data-gender="${u.gender}"]`);
+        if (genderButton) selectGender(u.gender, genderButton);
     }
     modal.classList.remove('hidden');
 }
@@ -138,6 +141,19 @@ function openModal(modalId) {
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.add('hidden');
+}
+
+function selectGender(gender, btn) {
+    const input = document.getElementById('input-gender');
+    if (input) input.value = gender;
+    document.querySelectorAll('.gender-btn').forEach(button => {
+        button.classList.remove('bg-emerald-500', 'text-slate-950', 'border-emerald-500');
+        button.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+    });
+    if (btn) {
+        btn.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+        btn.classList.add('bg-emerald-500', 'text-slate-950', 'border-emerald-500');
+    }
 }
 
 function switchTab(tabId) {
@@ -756,6 +772,7 @@ function handleOnboardingSubmit(e) {
         targetWeight: document.getElementById('input-target-weight').value,
         height: document.getElementById('input-height').value,
         age: document.getElementById('input-age').value,
+        gender: document.getElementById('input-gender').value,
         goal: document.getElementById('select-goal').value,
         activity: document.getElementById('select-activity').value,
         apiKey: document.getElementById('input-api-key').value
