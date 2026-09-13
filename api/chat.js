@@ -1,6 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 
+const rateLimitMap = new Map();
+const RATE_LIMIT = 20;
+const WINDOW_MS = 60 * 60 * 1000;
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of rateLimitMap.entries()) {
+        if (entry.resetAt < now) rateLimitMap.delete(ip);
+    }
+}, 10 * 60 * 1000);
+
 function loadExerciseCatalog() {
     try {
         const exercises = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'data', 'exercises.json'), 'utf8'));
@@ -33,6 +44,22 @@ ${JSON.stringify(userContext)}
 }
 
 module.exports = async function handler(req, res) {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+        || req.headers['x-real-ip']
+        || req.socket?.remoteAddress
+        || 'unknown';
+    const now = Date.now();
+    let entry = rateLimitMap.get(ip);
+    if (!entry || entry.resetAt < now) {
+        entry = { count: 1, resetAt: now + WINDOW_MS };
+        rateLimitMap.set(ip, entry);
+    } else if (entry.count >= RATE_LIMIT) {
+        return res.status(429).json({
+            error: 'لقد تجاوزت الحد المسموح. حاول لاحقاً.',
+            retryAfter: Math.ceil((entry.resetAt - Date.now()) / 1000)
+        });
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
@@ -114,6 +141,7 @@ module.exports = async function handler(req, res) {
 
         console.log('✅ الرد المرسل:', replyText);
 
+        entry.count += 1;
         return res.status(200).json({ reply: replyText });
 
     } catch (error) {
