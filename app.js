@@ -464,30 +464,38 @@ function openExerciseModal(id, name, muscle, met) {
 // ==========================================================
 async function handleSendMessage() {
     console.log('🚀 بدء إرسال الرسالة...');
-    
+
+    const sendButton = document.getElementById('send-chat-btn');
     const input = document.getElementById('chat-input');
-    if (!input) return;
-    
-    const text = input.value.trim();
-    if (!text && !selectedBase64Image) return;
-
-    const currentImage = selectedBase64Image;
-    input.value = '';
-    clearChatImage();
-
-    renderChatMessage('user', text, true, currentImage);
-
-    if (!navigator.onLine) {
-        addToPendingQueue(text);
-        renderChatMessage('assistant', '⚠️ أنت غير متصل بالإنترنت.', false);
-        return;
+    if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.classList.add('opacity-50');
     }
+    if (input) input.disabled = true;
 
-    const msgId = renderChatMessage('assistant', 'جاري التفكير...', false);
-
+    let msgId;
     try {
+        if (!input) return;
+
+        const text = input.value.trim();
+        if (!text && !selectedBase64Image) return;
+
+        const currentImage = selectedBase64Image;
+        input.value = '';
+        clearChatImage();
+
+        renderChatMessage('user', text, true, currentImage);
+
+        if (!navigator.onLine) {
+            addToPendingQueue(text);
+            renderChatMessage('assistant', '⚠️ أنت غير متصل بالإنترنت.', false);
+            return;
+        }
+
+        msgId = renderChatMessage('assistant', 'جاري التفكير...', false);
+
         console.log('📤 إرسال طلب إلى /api/chat...');
-        
+
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -516,6 +524,12 @@ async function handleSendMessage() {
         const fallback = '🎯 واصل الالتزام بخطتك الغذائية!';
         updateChatMessage(msgId, fallback);
         saveChatMessage('assistant', fallback);
+    } finally {
+        if (sendButton) {
+            sendButton.disabled = false;
+            sendButton.classList.remove('opacity-50');
+        }
+        if (input) input.disabled = false;
     }
 }
 
@@ -592,7 +606,7 @@ function renderChatMessage(sender, text, save = true, image = null) {
     const imgHTML = image ? `<img src="${image}" class="max-w-full h-auto rounded-lg mb-2 border border-slate-700"/>` : '';
     container.insertAdjacentHTML('beforeend', `
         <div id="${id}" class="flex ${isUser ? 'justify-end' : 'justify-start'} mb-2">
-            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-3.5 py-2 rounded-2xl max-w-[85%] text-sm leading-relaxed shadow-sm">
+            <div class="${isUser ? 'bg-emerald-600 text-slate-950 font-medium' : 'bg-slate-800 text-slate-100'} px-4 py-3 rounded-2xl max-w-[85%] text-sm leading-relaxed shadow-sm">
                 ${imgHTML}
                 <div data-message-content>${formatChatText(text)}</div>
             </div>
