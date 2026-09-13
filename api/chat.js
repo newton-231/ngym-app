@@ -44,6 +44,10 @@ ${JSON.stringify(userContext)}
 }
 
 module.exports = async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
         || req.headers['x-real-ip']
         || req.socket?.remoteAddress
@@ -51,17 +55,13 @@ module.exports = async function handler(req, res) {
     const now = Date.now();
     let entry = rateLimitMap.get(ip);
     if (!entry || entry.resetAt < now) {
-        entry = { count: 1, resetAt: now + WINDOW_MS };
+        entry = { count: 0, resetAt: now + WINDOW_MS };
         rateLimitMap.set(ip, entry);
     } else if (entry.count >= RATE_LIMIT) {
         return res.status(429).json({
             error: 'لقد تجاوزت الحد المسموح. حاول لاحقاً.',
             retryAfter: Math.ceil((entry.resetAt - Date.now()) / 1000)
         });
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     try {
