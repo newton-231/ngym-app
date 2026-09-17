@@ -141,8 +141,7 @@ function openModal(modalId) {
             const el = document.getElementById(id);
             if (el) el.value = fieldMap[id];
         }
-        const genderButton = document.querySelector(`.gender-btn[data-gender="${u.gender}"]`);
-        if (genderButton) selectGender(u.gender, genderButton);
+        if (u.gender) selectGender(u.gender);
     }
     modal.classList.remove('hidden');
 }
@@ -152,16 +151,17 @@ function closeModal(modalId) {
     if (modal) modal.classList.add('hidden');
 }
 
-function selectGender(gender, btn) {
+function selectGender(gender) {
     const input = document.getElementById('input-gender');
     if (input) input.value = gender;
     document.querySelectorAll('.gender-btn').forEach(button => {
-        button.classList.remove('bg-emerald-500', 'text-slate-950', 'border-emerald-500');
-        button.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+        button.classList.remove('border-emerald-500', 'text-emerald-400');
+        button.classList.add('border-slate-700', 'text-slate-300');
     });
-    if (btn) {
-        btn.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
-        btn.classList.add('bg-emerald-500', 'text-slate-950', 'border-emerald-500');
+    const selectedButton = document.getElementById('gender-' + gender);
+    if (selectedButton) {
+        selectedButton.classList.remove('border-slate-700', 'text-slate-300');
+        selectedButton.classList.add('border-emerald-500', 'text-emerald-400');
     }
 }
 
@@ -675,10 +675,18 @@ async function retryPendingMessages() {
 
 // ---- Reminders ----
 function loadReminderSettings() {
-    const timeInput = document.getElementById('reminder-time');
-    const enabledInput = document.getElementById('reminder-enabled');
-    if (timeInput) timeInput.value = localStorage.getItem('reminderTime') || '20:00';
-    if (enabledInput) enabledInput.checked = localStorage.getItem('reminderEnabled') === 'true';
+    const saved = JSON.parse(localStorage.getItem('ngym_reminders') || '{}');
+    if (saved.time) {
+        const t = document.getElementById('reminder-time');
+        if (t) t.value = saved.time;
+    }
+    if (saved.days) {
+        document.querySelectorAll('.day-btn').forEach(btn => {
+            if (saved.days.includes(btn.textContent.trim())) {
+                btn.classList.add('active');
+            }
+        });
+    }
 }
 
 function startReminderChecker() {
@@ -744,17 +752,33 @@ async function checkSubscriptionStatus() {
 
 async function updateSubscriptionUI() {
     const status = await checkSubscriptionStatus();
+    const remaining = getRemainingTrialDays();
     const banner = document.getElementById('subscription-banner');
     const statusText = document.getElementById('subscription-status');
     const renewBtn = document.getElementById('renew-btn');
+    if (statusText) {
+        if (remaining > 0) {
+            statusText.textContent = `✅ تجربة مجانية: ${remaining} يوم متبقي`;
+        } else {
+            statusText.textContent = '⛔ انتهت الفترة التجريبية';
+        }
+    }
     if (status === 'expired') {
         if (banner) banner.classList.remove('hidden');
-        if (statusText) statusText.textContent = '⛔ انتهت فترة التجربة';
         if (renewBtn) renewBtn.classList.remove('hidden');
     } else {
-        if (statusText) statusText.textContent = '✅ اشتراك فعال';
         if (renewBtn) renewBtn.classList.add('hidden');
     }
+}
+
+function getRemainingTrialDays() {
+    const startDate = localStorage.getItem('subscriptionStartDate');
+    if (!startDate) return 30;
+    const start = new Date(startDate);
+    const now = new Date();
+    const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    const remaining = 30 - diffDays;
+    return remaining > 0 ? remaining : 0;
 }
 
 async function generateCode(days) {
@@ -828,14 +852,19 @@ function handleExerciseSubmit(e) {
 function toggleDay(element) { if (element) element.classList.toggle('active'); }
 
 function saveReminders() {
-    const time = document.getElementById('reminder-time')?.value;
-    if (time) {
-        localStorage.setItem('reminderTime', time);
-        localStorage.setItem('reminderEnabled', 'true');
-        const status = document.getElementById('reminder-status');
-        if (status) status.textContent = `تم تفعيل التنبيه الساعة ${time}`;
-        alert('✅ تم حفظ التنبيه');
-    }
+    const time = document.getElementById('reminder-time')?.value || '20:00';
+    const selectedDays = [];
+    document.querySelectorAll('.day-btn.active').forEach(btn => {
+        selectedDays.push(btn.textContent.trim());
+    });
+    const reminders = {
+        time: time,
+        days: selectedDays,
+        enabled: selectedDays.length > 0,
+        savedAt: new Date().toISOString()
+    };
+    localStorage.setItem('ngym_reminders', JSON.stringify(reminders));
+    alert('✅ تم حفظ التنبيهات');
 }
 
 async function verifyAdmin() {
