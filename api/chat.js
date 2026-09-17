@@ -71,6 +71,46 @@ module.exports = async function handler(req, res) {
         }
         body = body || {};
 
+        const deviceId = body.deviceId;
+        if (!deviceId) {
+            return res.status(400).json({ error: 'معرّف الجهاز مفقود' });
+        }
+
+        // فحص الاشتراك من Firestore
+        try {
+            const admin = require('firebase-admin');
+            if (!admin.apps.length) {
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
+            }
+            const db = admin.firestore();
+            const userDoc = await db.collection('users').doc(deviceId).get();
+
+            if (userDoc.exists) {
+                const data = userDoc.data();
+                const subEnd = data.subscriptionEndDate;
+                if (subEnd && new Date(subEnd) < new Date()) {
+                    return res.status(403).json({
+                        error: 'انتهى اشتراكك. يرجى التجديد.',
+                        expired: true
+                    });
+                }
+            } else {
+                // مستخدم جديد: أنشئ سجلاً في Firestore
+                const newEnd = new Date();
+                newEnd.setDate(newEnd.getDate() + 30);
+                await db.collection('users').doc(deviceId).set({
+                    createdAt: new Date().toISOString(),
+                    subscriptionEndDate: newEnd.toISOString()
+                });
+            }
+        } catch (firestoreError) {
+            console.error('Firestore Check Error:', firestoreError);
+            // لا نوقف التطبيق إذا فشل Firestore، نكمل
+        }
+
         console.log('📥 البيانات المستلمة:', JSON.stringify(body));
 
         // ✅ التعديل الأهم: إضافة promptText في بداية البحث
