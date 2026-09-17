@@ -861,17 +861,20 @@ async function generateCode(days) {
 }
 
 async function redeemSubscriptionCode(code) {
-    if (!dbInstance) { alert("❌ Firebase غير متصل."); return; }
     try {
-        const doc = await dbInstance.collection('codes').doc(code.trim()).get();
-        if (doc.exists && !doc.data().isUsed) {
-            const days = doc.data().days || 30;
-            const newEnd = new Date(); newEnd.setDate(newEnd.getDate() + days);
-            localStorage.setItem('subscriptionEndDate', newEnd.toISOString());
-            await dbInstance.collection('codes').doc(code.trim()).update({ isUsed: true });
-            alert("✅ تم التفعيل!"); updateDashboardUI();
-        } else { alert("❌ الكود غير صالح"); }
-    } catch (e) { alert("فشل التحقق"); }
+        const response = await fetch('/api/redeem', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code.trim(), deviceId: getDeviceId() })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'فشل التحقق');
+        localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
+        alert("✅ تم التفعيل!");
+        updateDashboardUI();
+    } catch (error) {
+        alert(error.message || "فشل التحقق");
+    }
 }
 
 // ---- Form Handlers ----
