@@ -769,6 +769,22 @@ async function updateSubscriptionUI() {
     } else {
         if (renewBtn) renewBtn.classList.add('hidden');
     }
+
+    const chatInput = document.querySelector('.chat-input-container') || document.getElementById('chat-input')?.parentElement;
+    if (remaining === 0) {
+        if (chatInput) chatInput.style.display = 'none';
+        if (renewBtn) {
+            renewBtn.classList.remove('hidden');
+            renewBtn.textContent = '📱 تجديد عبر الواتساب';
+            renewBtn.onclick = () => {
+                const msg = encodeURIComponent('مرحباً، أريد تجديد اشتراكي في NGym PRO. حسابي: @newton_2000_');
+                window.open(`https://wa.me/972569699311?text=${msg}`, '_blank');
+            };
+        }
+    } else {
+        if (chatInput) chatInput.style.display = 'flex';
+        if (renewBtn) renewBtn.classList.add('hidden');
+    }
 }
 
 function getRemainingTrialDays() {
