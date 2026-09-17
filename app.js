@@ -24,6 +24,15 @@ let logoClickCount = 0;
 let logoClickTimer = null;
 let lastReminderCheckedMinute = '';
 
+function getDeviceId() {
+    let deviceId = localStorage.getItem('ngym_device_id');
+    if (!deviceId) {
+        deviceId = 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('ngym_device_id', deviceId);
+    }
+    return deviceId;
+}
+
 // ---- db Instance ----
 let dbInstance = null;
 if (typeof db !== 'undefined' && db !== null) {
@@ -503,6 +512,7 @@ async function handleSendMessage() {
                 promptText: text,
                 userMessage: text,
                 imageBase64: currentImage,
+                deviceId: getDeviceId(),
                 userContext: getCoachContext()
             })
         });
