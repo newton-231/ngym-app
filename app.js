@@ -24,6 +24,35 @@ let logoClickCount = 0;
 let logoClickTimer = null;
 let lastReminderCheckedMinute = '';
 
+function readJsonStorage(key, fallback) {
+    try {
+        const value = localStorage.getItem(key);
+        return value ? JSON.parse(value) : fallback;
+    } catch (error) {
+        console.warn(`تعذر قراءة التخزين المحلي: ${key}`, error);
+        return fallback;
+    }
+}
+
+function writeStorage(key, val) {
+    try {
+        localStorage.setItem(key, JSON.stringify(val));
+        return true;
+    } catch (error) {
+        console.warn(`تعذر تحديث التخزين المحلي: ${key}`, error);
+        return false;
+    }
+}
+
+function readStorageValue(key, fallback = null) {
+    try {
+        return localStorage.getItem(key) ?? fallback;
+    } catch (error) {
+        console.warn(`تعذر قراءة التخزين المحلي: ${key}`, error);
+        return fallback;
+    }
+}
+
 function getDeviceId() {
     let deviceId = localStorage.getItem('ngym_device_id');
     if (!deviceId) {
@@ -55,19 +84,18 @@ if (typeof db !== 'undefined' && db !== null) {
 
 // ---- User Data ----
 function getUserData() {
-    try {
-        return {
-            weight: parseFloat(localStorage.getItem('userWeight')) || DEFAULT_USER_DATA.weight,
-            targetWeight: parseFloat(localStorage.getItem('userTargetWeight')) || DEFAULT_USER_DATA.targetWeight,
-            height: parseFloat(localStorage.getItem('userHeight')) || DEFAULT_USER_DATA.height,
-            age: parseInt(localStorage.getItem('userAge')) || DEFAULT_USER_DATA.age,
-            gender: localStorage.getItem('userGender') || DEFAULT_USER_DATA.gender,
-            activity: parseFloat(localStorage.getItem('userActivity')) || DEFAULT_USER_DATA.activity,
-            goal: localStorage.getItem('userGoal') || DEFAULT_USER_DATA.goal,
-            xp: parseInt(localStorage.getItem('userXP')) || DEFAULT_USER_DATA.xp,
-            apiKey: localStorage.getItem('geminiApiKey') || ''
-        };
-    } catch (e) { return DEFAULT_USER_DATA; }
+    const stored = readJsonStorage('userData', {});
+    return {
+        weight: parseFloat(stored.weight ?? readStorageValue('userWeight')) || DEFAULT_USER_DATA.weight,
+        targetWeight: parseFloat(stored.targetWeight ?? readStorageValue('userTargetWeight')) || DEFAULT_USER_DATA.targetWeight,
+        height: parseFloat(stored.height ?? readStorageValue('userHeight')) || DEFAULT_USER_DATA.height,
+        age: parseInt(stored.age ?? readStorageValue('userAge')) || DEFAULT_USER_DATA.age,
+        gender: stored.gender || readStorageValue('userGender') || DEFAULT_USER_DATA.gender,
+        activity: parseFloat(stored.activity ?? readStorageValue('userActivity')) || DEFAULT_USER_DATA.activity,
+        goal: stored.goal || readStorageValue('userGoal') || DEFAULT_USER_DATA.goal,
+        xp: parseInt(stored.xp ?? readStorageValue('userXP')) || DEFAULT_USER_DATA.xp,
+        apiKey: stored.apiKey ?? readStorageValue('geminiApiKey', '') ?? ''
+    };
 }
 
 function saveUserData(data) {
@@ -82,6 +110,7 @@ function saveUserData(data) {
         if (data.goal) localStorage.setItem('userGoal', data.goal);
         if (data.apiKey !== undefined) localStorage.setItem('geminiApiKey', data.apiKey);
         localStorage.setItem('hasOnboarded', 'true');
+        writeStorage('userData', { ...getUserData(), ...data });
         updateDashboardUI();
     } catch (e) { console.warn("Storage restricted", e); }
 }
@@ -403,7 +432,7 @@ function renderWorkoutsList() {
         ].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(searchTerm)));
     }
     if (currentFilter === 'favorites') {
-        const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+        const favs = readJsonStorage('favorites', []);
         filtered = filtered.filter(ex => favs.includes(ex.id));
     } else if (currentFilter === 'home') {
         filtered = filtered.filter(ex => ['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
@@ -426,7 +455,7 @@ function renderWorkoutsList() {
         return;
     }
     container.innerHTML = filtered.map(ex => {
-        const isFav = JSON.parse(localStorage.getItem('favorites') || '[]').includes(ex.id);
+        const isFav = readJsonStorage('favorites', []).includes(ex.id);
         const arabicName = getExerciseArabicName(ex);
         const englishName = getExerciseEnglishName(ex);
         const muscles = (ex.primaryMuscles || []).join(', ');
@@ -454,10 +483,10 @@ function renderWorkoutsList() {
 }
 
 function toggleFavorite(id) {
-    let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+    let favs = readJsonStorage('favorites', []);
     if (favs.includes(id)) favs = favs.filter(f => f !== id);
     else favs.push(id);
-    localStorage.setItem('favorites', JSON.stringify(favs));
+    writeStorage('favorites', favs);
     renderWorkoutsList();
 }
 
@@ -483,6 +512,7 @@ async function handleSendMessage() {
     if (input) input.disabled = true;
 
     let msgId;
+    let requestTimeoutId;
     try {
         if (!input) return;
 
@@ -505,6 +535,8 @@ async function handleSendMessage() {
 
         console.log('📤 إرسال طلب إلى /api/chat...');
 
+        const controller = new AbortController();
+        requestTimeoutId = setTimeout(() => controller.abort(), 30000);
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -514,14 +546,16 @@ async function handleSendMessage() {
                 imageBase64: currentImage,
                 deviceId: getDeviceId(),
                 userContext: getCoachContext()
-            })
+            }),
+            signal: controller.signal
         });
+        clearTimeout(requestTimeoutId);
 
         console.log('📥 حالة الاستجابة:', response.status);
 
         if (!response.ok) throw new Error('فشل الاتصال: ' + response.status);
 
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         console.log('📦 البيانات المستلمة:', data);
 
         const reply = data.reply || data.message || 'لم يتم استلام رد';
@@ -535,12 +569,24 @@ async function handleSendMessage() {
         updateChatMessage(msgId, fallback);
         saveChatMessage('assistant', fallback);
     } finally {
+        if (requestTimeoutId) clearTimeout(requestTimeoutId);
         if (sendButton) {
             sendButton.disabled = false;
             sendButton.classList.remove('opacity-50');
         }
         if (input) input.disabled = false;
     }
+}
+
+async function parseApiResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+        const body = await response.text();
+        throw new Error(body.trim().startsWith('<')
+            ? 'استجابة غير صالحة من الخادم (HTML بدل JSON)'
+            : 'استجابة غير صالحة من الخادم');
+    }
+    return response.json();
 }
 
 // ---- Image and Voice ----
@@ -664,7 +710,7 @@ async function retryPendingMessages() {
                 body: JSON.stringify({ promptText: msg, userMessage: msg, userContext: getCoachContext() })
             });
             if (!res.ok) { failedMessages.push(msg); continue; }
-            const data = await res.json();
+            const data = await parseApiResponse(res);
             renderChatMessage('assistant', data.reply || 'تم الرد', true);
             await new Promise(r => setTimeout(r, 500));
         } catch (e) { failedMessages.push(msg); }
@@ -675,14 +721,14 @@ async function retryPendingMessages() {
 
 // ---- Reminders ----
 function loadReminderSettings() {
-    const saved = JSON.parse(localStorage.getItem('ngym_reminders') || '{}');
+    const saved = readJsonStorage('ngym_reminders', {});
     if (saved.time) {
         const t = document.getElementById('reminder-time');
         if (t) t.value = saved.time;
     }
     if (saved.days) {
         document.querySelectorAll('.day-btn').forEach(btn => {
-            if (saved.days.includes(btn.textContent.trim())) {
+            if (saved.days.includes(btn.dataset.day)) {
                 btn.classList.add('active');
             }
         });
@@ -694,9 +740,9 @@ function startReminderChecker() {
     reminderInterval = setInterval(() => {
         const now = new Date();
         if (now.getHours() === 0 && now.getMinutes() === 0) lastReminderCheckedMinute = '';
-        const enabled = localStorage.getItem('reminderEnabled') === 'true';
-        if (!enabled) return;
-        const setTime = localStorage.getItem('reminderTime');
+        const reminders = readJsonStorage('ngym_reminders', {});
+        if (!reminders.enabled || !reminders.days?.includes(String(now.getDay()))) return;
+        const setTime = reminders.time;
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         if (setTime === currentTime && lastReminderCheckedMinute !== currentTime) {
             lastReminderCheckedMinute = currentTime;
@@ -871,7 +917,7 @@ function saveReminders() {
     const time = document.getElementById('reminder-time')?.value || '20:00';
     const selectedDays = [];
     document.querySelectorAll('.day-btn.active').forEach(btn => {
-        selectedDays.push(btn.textContent.trim());
+        selectedDays.push(btn.dataset.day);
     });
     const reminders = {
         time: time,
@@ -879,7 +925,7 @@ function saveReminders() {
         enabled: selectedDays.length > 0,
         savedAt: new Date().toISOString()
     };
-    localStorage.setItem('ngym_reminders', JSON.stringify(reminders));
+    writeStorage('ngym_reminders', reminders);
     alert('✅ تم حفظ التنبيهات');
 }
 
