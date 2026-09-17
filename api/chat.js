@@ -6,7 +6,6 @@
 const fs = require('fs');
 const path = require('path');
 
- newton-231-exercise-gif-manifest
 const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
 const WINDOW_MS = 60 * 60 * 1000;
@@ -22,7 +21,6 @@ setInterval(() => {
 // ==========================================
 // 1. تحميل فهرس التمارين (مرة واحدة عند التشغيل)
 // ==========================================
- main
 function loadExerciseCatalog() {
     try {
         const exercises = JSON.parse(
@@ -110,7 +108,6 @@ module.exports = async function handler(req, res) {
         }
         body = body || {};
 
- newton-231-exercise-gif-manifest
         const deviceId = body.deviceId;
         if (!deviceId) {
             return res.status(400).json({ error: 'معرّف الجهاز مفقود' });
@@ -154,8 +151,6 @@ module.exports = async function handler(req, res) {
         console.log('📥 البيانات المستلمة:', JSON.stringify(body));
 
         console.log('📥 البيانات المستلمة:', JSON.stringify(body).substring(0, 500));
- main
-
         // استخراج النص
         const userMessage = body.promptText ||
                             body.userMessage ||
@@ -248,12 +243,9 @@ module.exports = async function handler(req, res) {
         // 6. إرجاع النتيجة
         // ==========================================
         if (succeeded && replyText) {
+            entry.count += 1;
             return res.status(200).json({ reply: replyText });
         }
-
- newton-231-exercise-gif-manifest
-        entry.count += 1;
-        return res.status(200).json({ reply: replyText });
 
         // إذا فشلت كل النماذج
         console.error('❌ فشلت جميع النماذج. آخر خطأ:', lastError);
@@ -261,8 +253,6 @@ module.exports = async function handler(req, res) {
             error: 'جميع النماذج غير متاحة حالياً. يرجى المحاولة لاحقاً.',
             details: lastError
         });
->> main
-
     } catch (error) {
         console.error('Gemini API Error:', error);
         return res.status(500).json({ error: 'خطأ داخلي: ' + error.message });
