@@ -359,14 +359,11 @@
                     <div><label class="block text-slate-400 mb-1">الطول (سم)</label><input type="number" id="input-height" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:border-emerald-500 focus:outline-none"></div>
                     <div><label class="block text-slate-400 mb-1">العمر</label><input type="number" id="input-age" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:border-emerald-500 focus:outline-none"></div>
                 </div>
-                <div>
-                    <label class="block text-slate-400 mb-1">الجنس</label>
-                    <input type="hidden" id="input-gender" value="male">
-                    <div class="grid grid-cols-2 gap-2">
-                        <button type="button" data-gender="male" onclick="selectGender('male', this)" class="gender-btn bg-slate-800 border border-slate-700 text-slate-300 rounded-xl p-2.5 transition">👨 ذكر</button>
-                        <button type="button" data-gender="female" onclick="selectGender('female', this)" class="gender-btn bg-slate-800 border border-slate-700 text-slate-300 rounded-xl p-2.5 transition">👩 أنثى</button>
-                    </div>
+                <div class="grid grid-cols-2 gap-2 mt-3">
+                    <button type="button" id="gender-male" onclick="selectGender('male')" class="gender-btn bg-slate-800 border border-slate-700 rounded-xl py-2.5 text-xs text-slate-300">👨 ذكر</button>
+                    <button type="button" id="gender-female" onclick="selectGender('female')" class="gender-btn bg-slate-800 border border-slate-700 rounded-xl py-2.5 text-xs text-slate-300">👩 أنثى</button>
                 </div>
+                <input type="hidden" id="input-gender" value="">
                 <div><label class="block text-slate-400 mb-1">الهدف الرئيسي</label>
                     <select id="select-goal" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:border-emerald-500 focus:outline-none">
                         <option value="bulking">تضخيم وبناء عضلات (Bulking)</option>
