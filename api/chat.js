@@ -1,6 +1,12 @@
+// ==========================================================
+// NGym - Chat API Handler
+// Resilient Multi-Model Version
+// ==========================================================
+
 const fs = require('fs');
 const path = require('path');
 
+ newton-231-exercise-gif-manifest
 const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
 const WINDOW_MS = 60 * 60 * 1000;
@@ -12,37 +18,69 @@ setInterval(() => {
     }
 }, 10 * 60 * 1000);
 
+
+// ==========================================
+// 1. تحميل فهرس التمارين (مرة واحدة عند التشغيل)
+// ==========================================
+ main
 function loadExerciseCatalog() {
     try {
-        const exercises = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'data', 'exercises.json'), 'utf8'));
-        const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'assets', 'gifs', 'manifest.json'), 'utf8'));
+        const exercises = JSON.parse(
+            fs.readFileSync(path.join(process.cwd(), 'data', 'exercises.json'), 'utf8')
+        );
+        const manifestPath = path.join(process.cwd(), 'assets', 'gifs', 'manifest.json');
+        let manifest = {};
+        try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        } catch (e) {
+            console.warn('manifest.json غير موجود، سيتم المتابعة بدونه');
+        }
+        
         return exercises.map(exercise => {
             const name = exercise.name_en || exercise.name || exercise.id;
             const arabicName = exercise.name_ar || exercise.arabic_name || '';
-            return `${exercise.id} | ${arabicName ? `${arabicName} / ` : ''}${name}${manifest[exercise.id] ? ' | GIF available' : ''}`;
+            const hasGif = manifest[exercise.id] ? ' | GIF available' : '';
+            return `${exercise.id} | ${arabicName ? `${arabicName} / ` : ''}${name}${hasGif}`;
         }).join('\n');
     } catch (error) {
-        console.error('تعذر تحميل فهرس التمارين للمدرب:', error);
+        console.error('تعذر تحميل فهرس التمارين:', error);
         return '';
     }
 }
 
 const exerciseCatalog = loadExerciseCatalog();
-const systemInstruction = `أنت مدرب تمارين ولياقة بدنية. أجب بالعربية عند الإمكان، واحتفظ بأسماء التمارين الإنجليزية عند الحاجة.
+
+// ==========================================
+// 2. بناء تعليمات النظام
+// ==========================================
+const baseSystemInstruction = `أنت مدرب تمارين ولياقة بدنية. أجب بالعربية عند الإمكان، واحتفظ بأسماء التمارين الإنجليزية عند الحاجة.
 قائمة التمارين ومعرفاتها:
 ${exerciseCatalog}
 
 عندما تقترح أو تشرح تمرينًا له GIF متاح، أضف وسمًا في سطر مستقل بالصيغة [GIF: exercise_id] باستخدام المعرف الموجود في القائمة. لا تستخدم هذا الوسم إلا للمعرفات الصحيحة.`;
 
 function buildSystemInstruction(userContext) {
-    if (!userContext) return systemInstruction;
-    return `${systemInstruction}
+    if (!userContext) return baseSystemInstruction;
+    return `${baseSystemInstruction}
 
-سياق المستخدم الحالي (بيانات شخصية وسجل اليوم، استخدمه لتخصيص الإجابة ولا تعرضه إلا عند الحاجة):
+سياق المستخدم الحالي (بيانات شخصية وسجل اليوم، استخدمه لتخصيص الإجابة):
 ${JSON.stringify(userContext)}
-اعتمد على الهدف والنشاط والسعرات الفعلية في تقديم النصيحة، ولا تفترض قيمًا عامة إذا كانت البيانات متاحة.`;
+اعتمد على الهدف والنشاط والسعرات الفعلية في تقديم النصيحة.`;
 }
 
+// ==========================================
+// 3. قائمة النماذج الاحتياطية (من الأحدث للأقدم)
+// ==========================================
+const GEMINI_MODELS = [
+    'gemini-3.6-flash',   // الأحدث والأسرع (يفضَّل)
+    'gemini-2.5-flash',   // احتياطي 1
+    'gemini-2.0-flash',   // احتياطي 2
+    'gemini-1.5-flash',   // احتياطي 3 (قديم لكن يعمل)
+];
+
+// ==========================================
+// 4. Handler الرئيسي
+// ==========================================
 module.exports = async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -65,12 +103,14 @@ module.exports = async function handler(req, res) {
     }
 
     try {
+        // قراءة الجسم
         let body = req.body;
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (e) {}
         }
         body = body || {};
 
+ newton-231-exercise-gif-manifest
         const deviceId = body.deviceId;
         if (!deviceId) {
             return res.status(400).json({ error: 'معرّف الجهاز مفقود' });
@@ -113,32 +153,35 @@ module.exports = async function handler(req, res) {
 
         console.log('📥 البيانات المستلمة:', JSON.stringify(body));
 
-        // ✅ التعديل الأهم: إضافة promptText في بداية البحث
+        console.log('📥 البيانات المستلمة:', JSON.stringify(body).substring(0, 500));
+ main
+
+        // استخراج النص
         const userMessage = body.promptText ||
-                           body.userMessage ||
-                           body.message ||
-                           body.prompt ||
-                           body.text ||
-                           body.content ||
-                           (body.messages && body.messages[body.messages.length - 1]?.content) ||
-                           null;
+                            body.userMessage ||
+                            body.message ||
+                            body.prompt ||
+                            body.text ||
+                            body.content ||
+                            (body.messages && body.messages[body.messages.length - 1]?.content) ||
+                            null;
 
         const imageBase64 = body.image || body.imageBase64 || null;
         const userContext = body.userContext || null;
 
+        // التحقق من المفتاح
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
+            console.error('❌ GEMINI_API_KEY missing');
             return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY مفقود' });
         }
 
         if (!userMessage) {
-            console.error('❌ الرسالة فارغة! البيانات:', JSON.stringify(body));
-            return res.status(400).json({ 
-                error: 'الرسالة فارغة',
-                received: body
-            });
+            console.error('❌ الرسالة فارغة');
+            return res.status(400).json({ error: 'الرسالة فارغة' });
         }
 
+        // بناء الطلب
         const requestBody = {
             system_instruction: { parts: [{ text: buildSystemInstruction(userContext) }] },
             contents: [{
@@ -146,9 +189,10 @@ module.exports = async function handler(req, res) {
             }]
         };
 
+        // إضافة الصورة إن وجدت
         if (imageBase64) {
-            const cleanBase64 = imageBase64.includes(',') 
-                ? imageBase64.split(',')[1] 
+            const cleanBase64 = imageBase64.includes(',')
+                ? imageBase64.split(',')[1]
                 : imageBase64;
             requestBody.contents[0].parts.push({
                 inline_data: {
@@ -158,31 +202,66 @@ module.exports = async function handler(req, res) {
             });
         }
 
-        const apiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
+        // ==========================================
+        // 5. المحاولة مع جميع النماذج بالترتيب
+        // ==========================================
+        let lastError = null;
+        let succeeded = false;
+        let replyText = null;
+
+        for (const model of GEMINI_MODELS) {
+            try {
+                console.log(`🔄 تجربة النموذج: ${model}`);
+                
+                const apiResponse = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody)
+                    }
+                );
+
+                const data = await apiResponse.json();
+
+                // إذا نجح
+                if (apiResponse.ok) {
+                    replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (replyText) {
+                        console.log(`✅ نجح النموذج: ${model}`);
+                        succeeded = true;
+                        break;
+                    }
+                }
+
+                // إذا فشل — سجّل الخطأ وجرّب التالي
+                console.warn(`⚠️ فشل النموذج ${model}:`, data.error?.message || 'unknown');
+                lastError = data.error?.message || `فشل النموذج ${model}`;
+
+            } catch (modelError) {
+                console.warn(`⚠️ خطأ في الاتصال بـ ${model}:`, modelError.message);
+                lastError = modelError.message;
             }
-        );
-
-        const data = await apiResponse.json();
-
-        if (!apiResponse.ok) {
-            console.error('❌ خطأ Google:', JSON.stringify(data));
-            return res.status(apiResponse.status).json({
-                error: data.error?.message || 'خطأ من سيرفر جوجل'
-            });
         }
 
-        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 
-                         'لم يتم استلام رد';
+        // ==========================================
+        // 6. إرجاع النتيجة
+        // ==========================================
+        if (succeeded && replyText) {
+            return res.status(200).json({ reply: replyText });
+        }
 
-        console.log('✅ الرد المرسل:', replyText);
-
+ newton-231-exercise-gif-manifest
         entry.count += 1;
         return res.status(200).json({ reply: replyText });
+
+        // إذا فشلت كل النماذج
+        console.error('❌ فشلت جميع النماذج. آخر خطأ:', lastError);
+        return res.status(500).json({
+            error: 'جميع النماذج غير متاحة حالياً. يرجى المحاولة لاحقاً.',
+            details: lastError
+        });
+>> main
 
     } catch (error) {
         console.error('Gemini API Error:', error);
