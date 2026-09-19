@@ -23,6 +23,8 @@ let reminderInterval = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
 let lastReminderCheckedMinute = '';
+let reminderServiceWorkerRegistration = null;
+const EXERCISE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"%3E%3Crect width="320" height="240" fill="%231e293b"/%3E%3Ctext x="160" y="125" text-anchor="middle" fill="%2394a3b8" font-size="20" font-family="Arial"%3ENo image%3C/text%3E%3C/svg%3E';
 
 function readJsonStorage(key, fallback) {
     try {
@@ -337,9 +339,9 @@ function highlightMuscles() {
 // ---- Workouts ----
 
 function getExerciseGifUrl(ex) {
-    if (!ex) return '/assets/gifs/default.gif';
+    if (!ex) return EXERCISE_IMAGE_PLACEHOLDER;
     const gifPath = ex.id ? exerciseGifManifest[ex.id] : '';
-    return gifPath ? `/assets/gifs/${gifPath}` : '/assets/gifs/default.gif';
+    return gifPath ? `/assets/gifs/${gifPath}` : EXERCISE_IMAGE_PLACEHOLDER;
 }
 
 function escapeHtml(value) {
@@ -358,7 +360,7 @@ function getExerciseEnglishName(ex) {
 
 function handleGifError(imgElement) {
     imgElement.onerror = null;
-    imgElement.src = '/assets/gifs/default.gif';
+    imgElement.src = EXERCISE_IMAGE_PLACEHOLDER;
 }
 
 function openExerciseGifModal(exerciseId) {
@@ -371,6 +373,7 @@ function openExerciseGifModal(exerciseId) {
     const englishName = document.getElementById('exercise-gif-modal-english-name');
     if (!modal || !image || !arabicName || !englishName) return;
 
+    image.onerror = () => handleGifError(image);
     image.src = getExerciseGifUrl(exercise);
     image.alt = getExerciseArabicName(exercise);
     arabicName.textContent = getExerciseArabicName(exercise);
@@ -684,8 +687,8 @@ function updateChatMessage(id, newText) {
 function formatChatText(text) {
     const escaped = escapeHtml(text).replace(/\r?\n/g, '<br>');
     return escaped.replace(/\[GIF:\s*([A-Za-z0-9_-]+)\s*\]/g, (match, id) => {
+        if (!exerciseGifManifest[id]) return match;
         const gifUrl = getExerciseGifUrl({ id });
-        if (gifUrl === '/assets/gifs/default.gif') return match;
         return `<img src="${gifUrl}" alt="GIF ${escapeHtml(id)}" class="block max-w-full h-auto rounded-lg my-2 border border-slate-700" loading="lazy" onerror="this.remove()">`;
     });
 }
@@ -744,13 +747,49 @@ function startReminderChecker() {
         if (!reminders.enabled || !reminders.days?.includes(String(now.getDay()))) return;
         const setTime = reminders.time;
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        if (setTime === currentTime && lastReminderCheckedMinute !== currentTime) {
-            lastReminderCheckedMinute = currentTime;
-            if ("Notification" in window && Notification.permission === "granted") {
-                new Notification("NGym 🏋️", { body: "حان وقت التمرين!" });
-            }
+        const reminderKey = `${now.toLocaleDateString('sv')}-${currentTime}`;
+        if (setTime === currentTime && lastReminderCheckedMinute !== reminderKey) {
+            lastReminderCheckedMinute = reminderKey;
+            showReminderNotification();
         }
-    }, 10000);
+    }, 5000);
+}
+
+async function showReminderNotification(test = false) {
+    if (!('Notification' in window)) {
+        if (!test) console.warn('الإشعارات غير مدعومة في هذا المتصفح');
+        return false;
+    }
+    if (Notification.permission !== 'granted') return false;
+
+    const options = {
+        body: test ? 'تم استلام إشعار NGym بنجاح.' : 'حان وقت التمرين!',
+        icon: '/icon-192.png',
+        tag: test ? 'ngym-notification-test' : 'ngym-workout-reminder'
+    };
+    if (reminderServiceWorkerRegistration) {
+        await reminderServiceWorkerRegistration.showNotification('NGym 🏋️', options);
+    } else {
+        new Notification('NGym 🏋️', options);
+    }
+    return true;
+}
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'default') {
+        return (await Notification.requestPermission()) === 'granted';
+    }
+    return Notification.permission === 'granted';
+}
+
+async function testReminderNotification() {
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+        alert('يرجى السماح بالإشعارات من إعدادات المتصفح أولاً.');
+        return;
+    }
+    await showReminderNotification(true);
 }
 
 // ---- Admin ----
@@ -916,7 +955,8 @@ function handleExerciseSubmit(e) {
 
 function toggleDay(element) { if (element) element.classList.toggle('active'); }
 
-function saveReminders() {
+async function saveReminders() {
+    const permissionGranted = await requestNotificationPermission();
     const time = document.getElementById('reminder-time')?.value || '20:00';
     const selectedDays = [];
     document.querySelectorAll('.day-btn.active').forEach(btn => {
@@ -929,7 +969,9 @@ function saveReminders() {
         savedAt: new Date().toISOString()
     };
     writeStorage('ngym_reminders', reminders);
-    alert('✅ تم حفظ التنبيهات');
+    alert(permissionGranted
+        ? '✅ تم حفظ التنبيهات وتفعيل الإشعارات'
+        : '✅ تم حفظ التنبيهات، لكن إذن الإشعارات غير مفعل');
 }
 
 async function verifyAdmin() {
@@ -952,6 +994,11 @@ async function verifyAdmin() {
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM loaded');
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => { reminderServiceWorkerRegistration = registration; })
+            .catch(error => console.error('تعذر تسجيل Service Worker:', error));
+    }
     loadExerciseDatabase().then(loadChatHistory);
     updateDashboardUI();
     loadReminderSettings();
