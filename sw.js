@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngym-cache-v2';
+const CACHE_NAME = 'ngym-cache-v3';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -47,6 +47,14 @@ self.addEventListener('fetch', (e) => {
             return cachedResponse || fetch(e.request);
         })
     );
+});
+
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'SHOW_NOTIFICATION') {
+        const title = event.data.title || 'NGym 🏋️';
+        const options = event.data.options || {};
+        event.waitUntil(self.registration.showNotification(title, options));
+    }
 });
 
 self.addEventListener('notificationclick', (event) => {
