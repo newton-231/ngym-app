@@ -19,6 +19,7 @@ let exerciseGifManifest = {};
 let selectedBase64Image = null;
 let currentFilter = 'all';
 let currentExercise = null;
+let currentGifExercise = null;
 let reminderInterval = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
@@ -338,10 +339,31 @@ function highlightMuscles() {
 
 // ---- Workouts ----
 
+function getDirectExerciseImage(ex) {
+    const imagePath = typeof ex?.gif === 'string' && ex.gif.trim()
+        ? ex.gif.trim()
+        : typeof ex?.image === 'string' && ex.image.trim()
+            ? ex.image.trim()
+            : '';
+    if (!imagePath) return '';
+    if (imagePath.startsWith('data:') || imagePath.startsWith('http') || imagePath.startsWith('/')) {
+        return imagePath;
+    }
+    return `/${imagePath.replace(/^\.?\//, '')}`;
+}
+
 function getExerciseGifUrl(ex) {
     if (!ex) return EXERCISE_IMAGE_PLACEHOLDER;
+    const directImage = getDirectExerciseImage(ex);
+    if (directImage) return directImage;
     const gifPath = ex.id ? exerciseGifManifest[ex.id] : '';
     return gifPath ? `/assets/gifs/${gifPath}` : EXERCISE_IMAGE_PLACEHOLDER;
+}
+
+function exerciseHasImage(ex) {
+    const directImage = getDirectExerciseImage(ex);
+    const isPlaceholder = directImage === EXERCISE_IMAGE_PLACEHOLDER || /(?:default|placeholder)\.(?:gif|png|jpg|jpeg|webp)$/i.test(directImage);
+    return Boolean(!isPlaceholder && (directImage || (ex?.id && exerciseGifManifest[ex.id])));
 }
 
 function escapeHtml(value) {
@@ -366,6 +388,7 @@ function handleGifError(imgElement) {
 function openExerciseGifModal(exerciseId) {
     const exercise = exerciseDatabase.find(item => item.id === exerciseId);
     if (!exercise) return;
+    currentGifExercise = exercise;
 
     const modal = document.getElementById('exercise-gif-modal');
     const image = document.getElementById('exercise-gif-modal-image');
@@ -374,7 +397,7 @@ function openExerciseGifModal(exerciseId) {
     if (!modal || !image || !arabicName || !englishName) return;
 
     image.onerror = () => handleGifError(image);
-    image.src = getExerciseGifUrl(exercise);
+    image.src = getExerciseGifUrl(currentGifExercise);
     image.alt = getExerciseArabicName(exercise);
     arabicName.textContent = getExerciseArabicName(exercise);
     englishName.textContent = getExerciseEnglishName(exercise);
@@ -386,6 +409,7 @@ function closeExerciseGifModal() {
     const image = document.getElementById('exercise-gif-modal-image');
     if (modal) modal.classList.add('hidden');
     if (image) image.removeAttribute('src');
+    currentGifExercise = null;
 }
 
 function filterWorkouts(filter) {
@@ -453,6 +477,9 @@ function renderWorkoutsList() {
             (ex.primaryMuscles || []).some(muscle => muscleAliases[currentFilter].includes(muscle.toLowerCase()))
         );
     }
+    filtered = [...filtered].sort((left, right) =>
+        Number(exerciseHasImage(right)) - Number(exerciseHasImage(left))
+    );
     if (filtered.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-8">لا توجد تمارين مطابقة</div>';
         return;
