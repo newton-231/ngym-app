@@ -21,6 +21,9 @@ let currentFilter = 'all';
 let currentExercise = null;
 let currentGifExercise = null;
 let reminderInterval = null;
+let fcmMessaging = null;
+let fcmToken = null;
+let fcmServiceWorkerRegistration = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
 let lastReminderCheckedMinute = '';
@@ -782,6 +785,76 @@ function startReminderChecker() {
     }, 5000);
 }
 
+function parseReminderTime(value, now = new Date()) {
+    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!match) return null;
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const meridiem = match[3]?.toUpperCase();
+    if (minutes > 59 || hours > (meridiem ? 12 : 23)) return null;
+    if (meridiem) hours = hours % 12 + (meridiem === 'PM' ? 12 : 0);
+    const target = new Date(now);
+    target.setHours(hours, minutes, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);
+    return target;
+}
+
+function formatReminderDate(date) {
+    return date.toLocaleString('ar', {
+        weekday: 'long', day: 'numeric', month: 'long',
+        hour: 'numeric', minute: '2-digit'
+    });
+}
+
+function formatReminderTime(date) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+async function initializeFcm() {
+    const vapidKey = window.NGYM_FCM_VAPID_KEY || 'BKqYhmmVT0mYWBR_xjtHZ5udkx6kbPpsGH7PccAihajOiKAyZamr268VROxLopp3hJPbRrfO-kx0oX2R5EaDKII';
+    if (!vapidKey || !window.firebase?.messaging || !fcmServiceWorkerRegistration) return null;
+    try {
+        fcmMessaging = firebase.messaging();
+        fcmToken = await fcmMessaging.getToken({
+            vapidKey,
+            serviceWorkerRegistration: fcmServiceWorkerRegistration
+        });
+        return fcmToken;
+    } catch (error) {
+        console.warn('تعذر استخراج FCM Token:', error);
+        return null;
+    }
+}
+
+function showOfflineBanner() {
+    let banner = document.getElementById('offline-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'offline-banner';
+        banner.className = 'fixed bottom-24 left-4 right-4 z-[70] rounded-xl bg-amber-500 text-slate-950 text-center text-xs font-bold p-3 shadow-lg';
+        document.body.appendChild(banner);
+    }
+    banner.textContent = 'أنت تعمل حالياً بدون إنترنت. بعض الميزات ستتزامن عند عودة الاتصال.';
+    banner.classList.remove('hidden');
+}
+
+function hideOfflineBanner() {
+    document.getElementById('offline-banner')?.classList.add('hidden');
+}
+
+async function saveReminderToFirebase(reminders, token) {
+    if (!window.db || !token) return;
+    try {
+        await db.collection('users').doc(getDeviceId()).set({
+            reminder: reminders,
+            fcmToken: token,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    } catch (error) {
+        console.warn('تعذر حفظ إعدادات FCM:', error);
+    }
+}
+
 async function showReminderNotification(test = false) {
     if (!('Notification' in window)) {
         if (!test) console.warn('الإشعارات غير مدعومة في هذا المتصفح');
@@ -984,7 +1057,9 @@ function toggleDay(element) { if (element) element.classList.toggle('active'); }
 
 async function saveReminders() {
     const permissionGranted = await requestNotificationPermission();
-    const time = document.getElementById('reminder-time')?.value || '20:00';
+    const inputTime = document.getElementById('reminder-time')?.value || '20:00';
+    const nextReminder = parseReminderTime(inputTime);
+    const time = nextReminder ? formatReminderTime(nextReminder) : inputTime;
     const selectedDays = [];
     document.querySelectorAll('.day-btn.active').forEach(btn => {
         selectedDays.push(btn.dataset.day);
@@ -996,8 +1071,10 @@ async function saveReminders() {
         savedAt: new Date().toISOString()
     };
     writeStorage('ngym_reminders', reminders);
+    const token = permissionGranted ? await initializeFcm() : null;
+    await saveReminderToFirebase(reminders, token);
     alert(permissionGranted
-        ? '✅ تم حفظ التنبيهات وتفعيل الإشعارات'
+        ? `✅ تم حفظ التنبيهات وتفعيل الإشعارات${nextReminder ? `\nموعد التنبيه التالي: ${formatReminderDate(nextReminder)}` : ''}`
         : '✅ تم حفظ التنبيهات، لكن إذن الإشعارات غير مفعل');
 }
 
@@ -1025,7 +1102,13 @@ document.addEventListener('DOMContentLoaded', function () {
         navigator.serviceWorker.register('/sw.js')
             .then(registration => { reminderServiceWorkerRegistration = registration; })
             .catch(error => console.error('تعذر تسجيل Service Worker:', error));
+        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            .then(registration => { fcmServiceWorkerRegistration = registration; })
+            .catch(error => console.error('تعذر تسجيل Firebase Messaging Service Worker:', error));
     }
+    window.addEventListener('offline', showOfflineBanner);
+    window.addEventListener('online', hideOfflineBanner);
+    if (!navigator.onLine) showOfflineBanner();
     loadExerciseDatabase().then(loadChatHistory);
     updateDashboardUI();
     loadReminderSettings();
