@@ -1,15 +1,20 @@
-const CACHE_NAME = 'ngym-cache-v3';
+const CACHE_NAME = 'ngym-cache-v4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './style.css',
     './app.js',
+    './sw.js',
+    './firebase-messaging-sw.js',
     './manifest.json',
     './data/exercises.json',
     './assets/gifs/manifest.json',
+    'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js',
     'https://cdn.tailwindcss.com',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-    'https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap'
+    'https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap',
+    'https://cdn-icons-png.flaticon.com/512/2964/2964514.png'
 ];
 
 // تثبيت ملف الـ Service Worker وتخزين الملفات الرئيسية
@@ -42,9 +47,18 @@ self.addEventListener('activate', (e) => {
 
 // استرجاع البيانات أثناء تصفح التطبيق أوفلاين
 self.addEventListener('fetch', (e) => {
+    if (e.request.method !== 'GET') return;
     e.respondWith(
         caches.match(e.request).then((cachedResponse) => {
-            return cachedResponse || fetch(e.request);
+            const isExerciseImage = new URL(e.request.url).pathname.includes('/assets/gifs/');
+            if (cachedResponse && isExerciseImage) return cachedResponse;
+            return fetch(e.request).then((networkResponse) => {
+                if (networkResponse.ok && isExerciseImage) {
+                    const copy = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(e.request, copy));
+                }
+                return networkResponse;
+            }).catch(() => cachedResponse || caches.match('./index.html'));
         })
     );
 });
