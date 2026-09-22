@@ -1396,6 +1396,165 @@ document.addEventListener('DOMContentLoaded', function () {
         showOfflineBanner();
         showToast('أنت غير متصل بالإنترنت.', 'warning');
     });
+
+    // ===== Google Authentication additions =====
+    function getAuthenticatedUid() {
+        return window.NGYM_MODULAR_AUTH?.auth?.currentUser?.uid
+            || window.firebase?.auth?.()?.currentUser?.uid
+            || localStorage.getItem('ngym_user_id')
+            || null;
+    }
+
+    function setAuthScreenVisible(isVisible) {
+        const authScreen = document.getElementById('auth-screen');
+        if (!authScreen) return;
+        authScreen.hidden = !isVisible;
+        document.querySelectorAll('body > *:not(#auth-screen):not(#toast-container)').forEach((element) => {
+            if (element.id !== 'splash-screen') element.hidden = isVisible;
+        });
+        if (!isVisible) {
+            const splash = document.getElementById('splash-screen');
+            if (splash) splash.hidden = true;
+        }
+    }
+
+    async function persistAuthenticatedUser(user) {
+        const uid = user?.uid;
+        if (!uid) return;
+        localStorage.setItem('ngym_user_id', uid);
+        try {
+            const now = new Date();
+            const users = db.collection('users');
+            const userRef = users.doc(uid);
+            const currentUserDoc = await userRef.get();
+            const oldDeviceId = localStorage.getItem('ngym_device_id');
+
+            if (oldDeviceId && oldDeviceId !== uid) {
+                try {
+                    const oldUserRef = users.doc(oldDeviceId);
+                    const oldUserDoc = await oldUserRef.get();
+                    if (oldUserDoc.exists) {
+                        await userRef.set(oldUserDoc.data(), { merge: true });
+                        await oldUserRef.delete();
+                        logEvent('migration', { from: 'device', to: 'uid' });
+                    }
+                    localStorage.removeItem('ngym_device_id');
+                } catch (migrationError) {
+                    console.error('تعذر ترحيل بيانات الجهاز القديم:', migrationError);
+                }
+            }
+
+            if (!currentUserDoc.exists) {
+                const trialEnd = new Date(now);
+                trialEnd.setDate(trialEnd.getDate() + 30);
+                await userRef.set({
+                    uid,
+                    email: user.email || '',
+                    displayName: user.displayName || '',
+                    photoURL: user.photoURL || '',
+                    createdAt: now.toISOString(),
+                    trialEndDate: trialEnd.toISOString(),
+                    subscriptionEndDate: null,
+                    lastLoginAt: now.toISOString()
+                }, { merge: true });
+            } else {
+                await userRef.set({ lastLoginAt: now.toISOString() }, { merge: true });
+            }
+        } catch (error) {
+            console.error('تعذر حفظ بيانات مستخدم Google:', error);
+            showToast('تم تسجيل الدخول، لكن تعذر حفظ بيانات الحساب.', 'warning');
+        }
+    }
+
+    async function signInWithGoogle() {
+        const authApi = window.NGYM_MODULAR_AUTH;
+        const errorElement = document.getElementById('auth-error');
+        const button = document.getElementById('google-signin-btn');
+        if (!authApi) {
+            if (errorElement) errorElement.textContent = 'خدمة تسجيل الدخول غير جاهزة، حاول مرة أخرى.';
+            return;
+        }
+        if (button) button.disabled = true;
+        if (errorElement) errorElement.textContent = '';
+        try {
+            const result = await authApi.signInWithPopup(authApi.auth, authApi.provider);
+            await persistAuthenticatedUser(result.user);
+            logEvent('sign_in', { method: 'google' });
+            setAuthScreenVisible(false);
+        } catch (error) {
+            console.error('Google sign-in failed:', error);
+            if (errorElement) {
+                errorElement.textContent = error.code === 'auth/popup-closed-by-user'
+                    ? 'تم إغلاق نافذة تسجيل الدخول.'
+                    : 'تعذر تسجيل الدخول باستخدام Google. حاول مرة أخرى.';
+            }
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
+
+    function initializeGoogleAuthentication() {
+        const authApi = window.NGYM_MODULAR_AUTH;
+        const button = document.getElementById('google-signin-btn');
+        if (button) button.addEventListener('click', signInWithGoogle);
+        const signoutButton = document.getElementById('signout-btn');
+        if (signoutButton) signoutButton.addEventListener('click', handleSignOut);
+        if (!authApi) return;
+        authApi.onAuthStateChanged(authApi.auth, async (user) => {
+            if (user) {
+                await persistAuthenticatedUser(user);
+                setAuthScreenVisible(false);
+            } else {
+                localStorage.removeItem('ngym_user_id');
+                setAuthScreenVisible(true);
+            }
+        });
+    }
+
+    async function handleSignOut() {
+        const authApi = window.NGYM_MODULAR_AUTH;
+        if (!authApi) return;
+        try {
+            await authApi.signOut(authApi.auth);
+            localStorage.removeItem('ngym_user_id');
+            localStorage.removeItem('ngym_device_id');
+            window.location.reload();
+        } catch (error) {
+            console.error('تعذر تسجيل الخروج:', error);
+            showToast('تعذر تسجيل الخروج. حاول مرة أخرى.', 'error');
+        }
+    }
+
+    // Inject uid into existing API calls while retaining deviceId as a temporary fallback.
+    (() => {
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = async (input, init = {}) => {
+            const url = typeof input === 'string' ? input : input?.url || '';
+            if (!/\/api\/(chat|redeem)(?:[/?#]|$)/.test(url) || !init.body) {
+                return originalFetch(input, init);
+            }
+            try {
+                const body = JSON.parse(init.body);
+                const uid = getAuthenticatedUid();
+                if (uid) {
+                    body.uid = uid;
+                    body.deviceId = body.deviceId || getDeviceId();
+                    const token = await window.NGYM_MODULAR_AUTH?.auth?.currentUser?.getIdToken();
+                    const headers = new Headers(init.headers || {});
+                    headers.set('Content-Type', 'application/json');
+                    if (token) headers.set('Authorization', `Bearer ${token}`);
+                    init = { ...init, headers, body: JSON.stringify(body) };
+                }
+            } catch (error) {
+                console.warn('تعذر إضافة uid إلى طلب API:', error);
+            }
+            return originalFetch(input, init);
+        };
+    })();
+
+    window.addEventListener('load', () => {
+        window.setTimeout(initializeGoogleAuthentication, 0);
+    });
     window.addEventListener('online', () => {
         hideOfflineBanner();
         showToast('تم استعادة الاتصال بالإنترنت.', 'success');

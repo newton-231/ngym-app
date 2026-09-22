@@ -9,6 +9,7 @@ const path = require('path');
 const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
 const WINDOW_MS = 60 * 60 * 1000;
+const securityLogAttempts = new Map();
 
 setInterval(() => {
     const now = Date.now();
@@ -83,6 +84,8 @@ module.exports = async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
+    const uid = await verifyFirebaseRequest(req, res);
+    if (!uid) return;
 
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
         || req.headers['x-real-ip']
@@ -108,44 +111,36 @@ module.exports = async function handler(req, res) {
         }
         body = body || {};
 
-        const deviceId = body.deviceId;
-        if (!deviceId) {
-            return res.status(400).json({ error: 'معرّف الجهاز مفقود' });
-        }
-
-        // فحص الاشتراك من Firestore
+        // فحص الاشتراك من Firestore فقط. لا نثق بأي بيانات اشتراك من العميل.
         try {
             const admin = require('firebase-admin');
             if (!admin.apps.length) {
-                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
                 admin.initializeApp({
                     credential: admin.credential.cert(serviceAccount)
                 });
             }
             const db = admin.firestore();
-            const userDoc = await db.collection('users').doc(deviceId).get();
-
-            if (userDoc.exists) {
-                const data = userDoc.data();
-                const subEnd = data.subscriptionEndDate;
-                if (subEnd && new Date(subEnd) < new Date()) {
-                    return res.status(403).json({
-                        error: 'انتهى اشتراكك. يرجى التجديد.',
-                        expired: true
-                    });
-                }
-            } else {
-                // مستخدم جديد: أنشئ سجلاً في Firestore
-                const newEnd = new Date();
-                newEnd.setDate(newEnd.getDate() + 30);
-                await db.collection('users').doc(deviceId).set({
-                    createdAt: new Date().toISOString(),
-                    subscriptionEndDate: newEnd.toISOString()
+            const userDoc = await db.collection('users').doc(uid).get();
+            if (!userDoc.exists) {
+                await logSecurityFailure(db, uid, 'المستخدم غير موجود', req);
+                return res.status(401).json({ error: 'المستخدم غير موجود' });
+            }
+            const data = userDoc.data() || {};
+            const now = new Date();
+            const trialEnd = parseFirestoreDate(data.trialEndDate);
+            const subscriptionEnd = parseFirestoreDate(data.subscriptionEndDate);
+            const hasActiveTrial = trialEnd && trialEnd > now;
+            const hasActiveSubscription = subscriptionEnd && subscriptionEnd > now;
+            if (!hasActiveTrial && !hasActiveSubscription) {
+                await logSecurityFailure(db, uid, 'لا اشتراك نشط', req);
+                return res.status(403).json({
+                    error: 'لا يوجد اشتراك نشط'
                 });
             }
         } catch (firestoreError) {
             console.error('Firestore Check Error:', firestoreError);
-            // لا نوقف التطبيق إذا فشل Firestore، نكمل
+            return res.status(503).json({ error: 'تعذر التحقق من الاشتراك' });
         }
 
         console.log('📥 البيانات المستلمة:', JSON.stringify(body));
@@ -258,3 +253,70 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ error: 'خطأ داخلي: ' + error.message });
     }
 };
+
+function parseFirestoreDate(value) {
+    if (!value) return null;
+    if (typeof value.toDate === 'function') return value.toDate();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function logSecurityFailure(db, uid, reason, req = null) {
+    if (!uid) return;
+    const now = Date.now();
+    const ip = req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()
+        || req?.headers?.['x-real-ip']
+        || req?.socket?.remoteAddress
+        || 'unknown';
+    const attempt = securityLogAttempts.get(ip) || { count: 0, resetAt: now + 60 * 60 * 1000 };
+    if (attempt.resetAt <= now) {
+        attempt.count = 0;
+        attempt.resetAt = now + 60 * 60 * 1000;
+    }
+    if (attempt.count >= 5) {
+        console.warn('تم تجاوز حد تسجيل المحاولات الأمنية:', ip);
+        return;
+    }
+    attempt.count += 1;
+    securityLogAttempts.set(ip, attempt);
+    if (Math.random() > 0.1) return;
+    try {
+        await db.collection('security_logs').add({
+            uid: uid || null,
+            reason,
+            date: new Date().toISOString()
+        });
+        // TODO: Configure a Firestore TTL policy on security_logs.date.
+    } catch (error) {
+        console.error('تعذر تسجيل محاولة أمنية فاشلة:', error);
+    }
+}
+
+// Authentication and subscription checks are based only on the Firestore user document.
+const legacyChatHandler = module.exports;
+module.exports = async function authenticatedChatHandler(req, res) {
+    if (req.method !== 'POST') return legacyChatHandler(req, res);
+    return legacyChatHandler(req, res);
+};
+
+async function verifyFirebaseRequest(req, res) {
+    const authorization = req.headers.authorization || '';
+    if (!authorization.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'يجب تسجيل الدخول أولاً' });
+        return null;
+    }
+    try {
+        const admin = require('firebase-admin');
+        if (!admin.apps.length) {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
+            admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        }
+        const token = authorization.slice('Bearer '.length).trim();
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        return decodedToken.uid;
+    } catch (error) {
+        console.error('Firebase ID Token verification failed:', error);
+        res.status(401).json({ error: 'رمز المصادقة غير صالح' });
+        return null;
+    }
+}

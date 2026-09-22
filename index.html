@@ -561,3 +561,97 @@
     <script src="app.js"></script>
 </body>
 </html>
+
+<!-- Google Authentication additions are appended to preserve the existing markup. -->
+<script type="module">
+    import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import {
+        getAuth,
+        signInWithPopup,
+        signOut,
+        GoogleAuthProvider,
+        onAuthStateChanged
+    } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+    const authConfig = {
+        apiKey: 'AIzaSyDDZ6DRL_7n8gHaJH3I14ULAIKsUsT90Xw',
+        authDomain: 'ngym-app.firebaseapp.com',
+        projectId: 'ngym-app',
+        storageBucket: 'ngym-app.firebasestorage.app',
+        messagingSenderId: '1048781288073',
+        appId: '1:1048781288073:web:bf9cc9368331eabaf6cc58'
+    };
+    const modularApp = getApps().length ? getApps()[0] : initializeApp(authConfig, 'ngym-modular');
+    const modularAuth = getAuth(modularApp);
+    const provider = new GoogleAuthProvider();
+
+    window.NGYM_MODULAR_AUTH = {
+        auth: modularAuth,
+        signInWithPopup,
+        signOut,
+        provider,
+        onAuthStateChanged
+    };
+
+    const authScreen = document.createElement('section');
+    authScreen.id = 'auth-screen';
+    authScreen.hidden = false;
+    authScreen.innerHTML = `
+        <div class="auth-card">
+            <div class="auth-logo" aria-hidden="true">
+                <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="54" fill="#10b981"/>
+                    <path d="M30 66h12V47h8v26h8V39h8v34h8V50h8v16h8" fill="none" stroke="#0f172a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h1>NGym</h1>
+            <p>ابدأ رحلتك نحو جسم أقوى وحياة أكثر نشاطاً</p>
+            <button id="google-signin-btn" type="button">
+                <span aria-hidden="true">G</span>
+                تسجيل الدخول بـ Google
+            </button>
+            <a href="/privacy.html">سياسة الخصوصية</a>
+            <div id="auth-error" role="alert" aria-live="polite"></div>
+        </div>
+    `;
+    document.body.insertBefore(authScreen, document.getElementById('onboarding-modal') || document.body.firstChild);
+    const authStyle = document.createElement('style');
+    authStyle.textContent = `
+        #auth-screen {
+            position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center;
+            padding: 24px; background: radial-gradient(circle at top, #172554 0, #020617 55%, #000 100%);
+        }
+        #auth-screen[hidden] { display: none; }
+        .auth-card {
+            width: min(100%, 390px); padding: 42px 28px 30px; text-align: center;
+            background: rgba(15, 23, 42, .9); border: 1px solid rgba(52, 211, 153, .25);
+            border-radius: 28px; box-shadow: 0 25px 80px rgba(0, 0, 0, .45);
+        }
+        .auth-logo { width: 92px; height: 92px; margin: 0 auto 20px; filter: drop-shadow(0 0 20px rgba(16, 185, 129, .35)); }
+        .auth-logo svg { width: 100%; height: 100%; }
+        .auth-card h1 { margin: 0; color: #34d399; font-size: 2.35rem; font-weight: 900; }
+        .auth-card p { margin: 8px 0 28px; color: #94a3b8; font-size: .85rem; line-height: 1.8; }
+        #google-signin-btn {
+            width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+            padding: 13px 16px; border: 0; border-radius: 14px; background: #fff; color: #1e293b;
+            font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer; transition: transform .2s, box-shadow .2s;
+        }
+        #google-signin-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,255,255,.15); }
+        #google-signin-btn span { color: #4285f4; font-size: 1.2rem; font-weight: 900; }
+        .auth-card > a { display: inline-block; margin-top: 22px; color: #6ee7b7; font-size: .75rem; text-decoration: underline; }
+        #auth-error { min-height: 20px; margin-top: 14px; color: #fca5a5; font-size: .75rem; }
+    `;
+    document.head.appendChild(authStyle);
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsContent = settingsModal?.querySelector('.bg-slate-900');
+    if (settingsContent && !document.getElementById('signout-btn')) {
+        const signoutButton = document.createElement('button');
+        signoutButton.id = 'signout-btn';
+        signoutButton.type = 'button';
+        signoutButton.textContent = 'تسجيل الخروج';
+        signoutButton.className = 'w-full bg-slate-800 border border-slate-700 text-slate-200 py-2.5 rounded-xl text-xs font-bold hover:border-emerald-500';
+        settingsContent.appendChild(signoutButton);
+    }
+    // TODO: Migrate the remaining Firestore, Messaging, and Analytics calls to
+    // Modular SDK before removing the existing Compat SDK scripts.
+</script>
