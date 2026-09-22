@@ -28,7 +28,69 @@ let logoClickCount = 0;
 let logoClickTimer = null;
 let lastReminderCheckedMinute = '';
 let reminderServiceWorkerRegistration = null;
+let splashAuthReady = false;
+let splashUserReady = false;
+let splashExercisesReady = false;
+let splashHidden = false;
 const EXERCISE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"%3E%3Crect width="320" height="240" fill="%231e293b"/%3E%3Ctext x="160" y="125" text-anchor="middle" fill="%2394a3b8" font-size="20" font-family="Arial"%3ENo image%3C/text%3E%3C/svg%3E';
+
+function hideSplash() {
+    if (splashHidden) return;
+    splashHidden = true;
+    const splash = document.getElementById('splash-screen');
+    if (!splash) return;
+    splash.classList.add('fade-out');
+    window.setTimeout(() => {
+        splash.style.display = 'none';
+    }, 350);
+}
+
+function tryHideSplash() {
+    if (splashAuthReady && splashUserReady && splashExercisesReady) hideSplash();
+}
+
+async function loadUserDataFromFirestore() {
+    try {
+        if (dbInstance && typeof dbInstance.collection === 'function') {
+            const snapshot = await dbInstance.collection('users').doc(getDeviceId()).get();
+            if (snapshot.exists && snapshot.data()) {
+                saveUserData(snapshot.data());
+            }
+        }
+    } catch (error) {
+        console.warn('تعذر تحميل بيانات المستخدم من Firestore:', error);
+    } finally {
+        splashUserReady = true;
+        tryHideSplash();
+    }
+}
+
+function initializeSplashReadiness() {
+    const auth = window.firebase?.auth;
+    if (typeof auth !== 'function') {
+        splashAuthReady = true;
+        loadUserDataFromFirestore();
+        tryHideSplash();
+        return;
+    }
+    try {
+        auth().onAuthStateChanged(() => {
+            splashAuthReady = true;
+            loadUserDataFromFirestore();
+            tryHideSplash();
+        }, (error) => {
+            console.warn('تعذر التحقق من حالة المصادقة:', error);
+            splashAuthReady = true;
+            loadUserDataFromFirestore();
+            tryHideSplash();
+        });
+    } catch (error) {
+        console.warn('تعذر تهيئة المصادقة:', error);
+        splashAuthReady = true;
+        loadUserDataFromFirestore();
+        tryHideSplash();
+    }
+}
 
 function readJsonStorage(key, fallback) {
     try {
@@ -448,6 +510,8 @@ async function loadExerciseDatabase() {
     }
 
     renderWorkoutsList();
+    splashExercisesReady = true;
+    tryHideSplash();
 }
 
 function renderWorkoutsList() {
@@ -1098,6 +1162,8 @@ async function verifyAdmin() {
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM loaded');
+    initializeSplashReadiness();
+    window.setTimeout(hideSplash, 5000);
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
             .then(registration => { reminderServiceWorkerRegistration = registration; })
