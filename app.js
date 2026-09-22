@@ -1421,20 +1421,28 @@ document.addEventListener('DOMContentLoaded', function () {
     async function persistAuthenticatedUser(user) {
         const uid = user?.uid;
         if (!uid) return;
+
         localStorage.setItem('ngym_user_id', uid);
+
         try {
             const now = new Date();
             const users = db.collection('users');
             const userRef = users.doc(uid);
-            const currentUserDoc = await userRef.get();
-            const oldDeviceId = localStorage.getItem('ngym_device_id');
 
+            // 1. Migration أولاً — انسخ فقط بيانات الاشتراك
+            const oldDeviceId = localStorage.getItem('ngym_device_id');
             if (oldDeviceId && oldDeviceId !== uid) {
                 try {
                     const oldUserRef = users.doc(oldDeviceId);
                     const oldUserDoc = await oldUserRef.get();
                     if (oldUserDoc.exists) {
-                        await userRef.set(oldUserDoc.data(), { merge: true });
+                        const oldData = oldUserDoc.data();
+                        await userRef.set({
+                            subscriptionEndDate: oldData.subscriptionEndDate || null,
+                            trialEndDate: oldData.trialEndDate || null,
+                            migratedFrom: oldDeviceId,
+                            migratedAt: now.toISOString()
+                        }, { merge: true });
                         await oldUserRef.delete();
                         logEvent('migration', { from: 'device', to: 'uid' });
                     }
@@ -1444,22 +1452,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
+            // 2. اقرأ الوثيقة بعد Migration
+            const currentUserDoc = await userRef.get();
+
+            // 3. البيانات الأساسية دائماً
+            const baseData = {
+                uid,
+                email: user.email || '',
+                displayName: user.displayName || '',
+                photoURL: user.photoURL || '',
+                lastLoginAt: now.toISOString()
+            };
+
+            // 4. إذا مستخدم جديد، أضف التجربة
             if (!currentUserDoc.exists) {
                 const trialEnd = new Date(now);
                 trialEnd.setDate(trialEnd.getDate() + 30);
-                await userRef.set({
-                    uid,
-                    email: user.email || '',
-                    displayName: user.displayName || '',
-                    photoURL: user.photoURL || '',
-                    createdAt: now.toISOString(),
-                    trialEndDate: trialEnd.toISOString(),
-                    subscriptionEndDate: null,
-                    lastLoginAt: now.toISOString()
-                }, { merge: true });
-            } else {
-                await userRef.set({ lastLoginAt: now.toISOString() }, { merge: true });
+                baseData.createdAt = now.toISOString();
+                baseData.trialEndDate = trialEnd.toISOString();
+                baseData.subscriptionEndDate = null;
             }
+
+            // 5. اكتب
+            await userRef.set(baseData, { merge: true });
+
         } catch (error) {
             console.error('تعذر حفظ بيانات مستخدم Google:', error);
             showToast('تم تسجيل الدخول، لكن تعذر حفظ بيانات الحساب.', 'warning');

@@ -10,6 +10,8 @@ const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
 const WINDOW_MS = 60 * 60 * 1000;
 const securityLogAttempts = new Map();
+const uidRateLimitMap = new Map();
+const UID_RATE_LIMIT = 60;
 
 setInterval(() => {
     const now = Date.now();
@@ -86,6 +88,18 @@ module.exports = async function handler(req, res) {
     }
     const uid = await verifyFirebaseRequest(req, res);
     if (!uid) return;
+    const uidNow = Date.now();
+    let uidEntry = uidRateLimitMap.get(uid);
+    if (!uidEntry || uidEntry.resetAt < uidNow) {
+        uidEntry = { count: 0, resetAt: uidNow + WINDOW_MS };
+        uidRateLimitMap.set(uid, uidEntry);
+    } else if (uidEntry.count >= UID_RATE_LIMIT) {
+        return res.status(429).json({
+            error: 'تجاوزت الحد المسموح. حاول لاحقاً.',
+            retryAfter: Math.ceil((uidEntry.resetAt - Date.now()) / 1000)
+        });
+    }
+    uidEntry.count += 1;
 
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
         || req.headers['x-real-ip']
