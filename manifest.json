@@ -1,6 +1,7 @@
 {
   "name": "NGym - تطبيق التدريب الذكي",
   "short_name": "NGym",
+  "version": "1.0.0",
   "description": "تطبيق اللياقة البدنية والمدرب الذكي لمتابعة التمارين والماكروز",
   "start_url": "./index.html",
   "display": "standalone",
