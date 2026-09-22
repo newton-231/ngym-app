@@ -18,21 +18,70 @@ let exerciseDatabase = [];
 let exerciseGifManifest = {};
 let selectedBase64Image = null;
 let currentFilter = 'all';
+let currentTab = 'sec-dashboard';
 let currentExercise = null;
 let currentGifExercise = null;
 let reminderInterval = null;
 let fcmMessaging = null;
 let fcmToken = null;
 let fcmServiceWorkerRegistration = null;
+let analyticsInstance = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
 let lastReminderCheckedMinute = '';
 let reminderServiceWorkerRegistration = null;
+let appStateInterval = null;
 let splashAuthReady = false;
 let splashUserReady = false;
 let splashExercisesReady = false;
 let splashHidden = false;
 const EXERCISE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"%3E%3Crect width="320" height="240" fill="%231e293b"/%3E%3Ctext x="160" y="125" text-anchor="middle" fill="%2394a3b8" font-size="20" font-family="Arial"%3ENo image%3C/text%3E%3C/svg%3E';
+
+function showToast(message, type = 'info', duration = 3000, retryAction = null) {
+    const container = document.getElementById('toast-container') || (() => {
+        const element = document.createElement('div');
+        element.id = 'toast-container';
+        document.body.appendChild(element);
+        return element;
+    })();
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${['success', 'error', 'warning', 'info'].includes(type) ? type : 'info'}`;
+    const text = document.createElement('span');
+    text.textContent = message;
+    toast.appendChild(text);
+    if (typeof retryAction === 'function') {
+        const retryButton = document.createElement('button');
+        retryButton.type = 'button';
+        retryButton.className = 'toast-retry';
+        retryButton.textContent = 'إعادة المحاولة';
+        retryButton.addEventListener('click', () => {
+            toast.remove();
+            retryAction();
+        });
+        toast.appendChild(retryButton);
+    }
+    container.appendChild(toast);
+    window.setTimeout(() => toast.remove(), duration);
+}
+
+function showError(error) {
+    const message = error?.userMessage || error?.message || 'حدث خطأ غير متوقع. حاول مرة أخرى.';
+    showToast(message, 'error', 5000, error?.retry);
+}
+
+try {
+    if (window.firebase?.analytics) analyticsInstance = firebase.analytics();
+} catch (error) {
+    console.warn('تعذر تهيئة Firebase Analytics:', error);
+}
+
+function logEvent(name, params = {}) {
+    try {
+        if (analyticsInstance) analyticsInstance.logEvent(name, params);
+    } catch (error) {
+        console.warn(`تعذر تسجيل حدث Analytics: ${name}`, error);
+    }
+}
 
 function hideSplash() {
     if (splashHidden) return;
@@ -74,8 +123,9 @@ function initializeSplashReadiness() {
         return;
     }
     try {
-        auth().onAuthStateChanged(() => {
+        auth().onAuthStateChanged((user) => {
             splashAuthReady = true;
+            if (user) logEvent('sign_in', { method: 'firebase' });
             loadUserDataFromFirestore();
             tryHideSplash();
         }, (error) => {
@@ -110,6 +160,62 @@ function writeStorage(key, val) {
         console.warn(`تعذر تحديث التخزين المحلي: ${key}`, error);
         return false;
     }
+
+}
+
+function getAppState() {
+    const chatHistory = readJsonStorage('chatHistory', []);
+    return {
+        currentTab,
+        chatHistory: Array.isArray(chatHistory) ? chatHistory.slice(-20) : [],
+        currentExerciseId: currentExercise?.id || currentGifExercise?.id || null,
+        notificationSettings: readJsonStorage('ngym_reminders', {})
+    };
+}
+
+function saveAppState() {
+    writeStorage('ngym_app_state', getAppState());
+}
+
+function restoreAppState() {
+    const state = readJsonStorage('ngym_app_state', {});
+    if (!state || typeof state !== 'object') return;
+
+    if (typeof state.currentTab === 'string' && document.getElementById(state.currentTab)) {
+        currentTab = state.currentTab;
+        switchTab(currentTab);
+    }
+    if (Array.isArray(state.chatHistory)) {
+        writeStorage('chatHistory', state.chatHistory.slice(-20));
+        loadChatHistory();
+    }
+    if (state.currentExerciseId) {
+        const exercise = exerciseDatabase.find(item => item.id === state.currentExerciseId);
+        if (exercise) openExerciseGifModal(exercise.id);
+    }
+    if (state.notificationSettings && typeof state.notificationSettings === 'object') {
+        writeStorage('ngym_reminders', state.notificationSettings);
+        loadReminderSettings();
+    }
+}
+
+function clearLocalData() {
+    if (!window.confirm('هل أنت متأكد من حذف جميع البيانات المحلية؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    try {
+        localStorage.clear();
+        sessionStorage.removeItem('adminToken');
+        currentTab = 'sec-dashboard';
+        currentExercise = null;
+        currentGifExercise = null;
+        closeExerciseGifModal();
+        switchTab(currentTab);
+        alert('تم مسح البيانات المحلية بنجاح.');
+        window.location.reload();
+    } catch (error) {
+        console.error('تعذر مسح البيانات المحلية:', error);
+        alert('تعذر مسح البيانات المحلية.');
+    }
+
 }
 
 function readStorageValue(key, fallback = null) {
@@ -118,6 +224,81 @@ function readStorageValue(key, fallback = null) {
     } catch (error) {
         console.warn(`تعذر قراءة التخزين المحلي: ${key}`, error);
         return fallback;
+    }
+
+    const APP_VERSION_FALLBACK = '1.0.0';
+    const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.ngym.app';
+    const SUPPORT_WHATSAPP_NUMBER = '972569699311';
+
+    function formatLastVisit(timestamp) {
+        const elapsedHours = Math.max(0, Math.floor((Date.now() - timestamp) / 3600000));
+        if (elapsedHours < 1) return 'آخر زيارة: منذ أقل من ساعة';
+        if (elapsedHours === 1) return 'آخر زيارة: منذ ساعة';
+        return `آخر زيارة: منذ ${elapsedHours} ساعات`;
+    }
+
+    function renderLastVisit() {
+        const previousVisit = Number(readStorageValue('ngym_last_visit', 0));
+        const element = document.getElementById('last-visit');
+        if (element) {
+            element.textContent = previousVisit > 0
+                ? formatLastVisit(previousVisit)
+                : 'آخر زيارة: هذه هي الزيارة الأولى';
+        }
+    }
+
+    function recordAppOpen() {
+        renderLastVisit();
+        writeStorage('ngym_last_visit', Date.now());
+    }
+
+    function updateAppVersion(version) {
+        const element = document.getElementById('app-version');
+        if (element) element.textContent = version;
+        const previousVersion = readStorageValue('ngym_seen_version', '');
+        if (previousVersion && previousVersion !== version) {
+            showToast(`جديد! يتوفر تحديث للتطبيق (${version}).`, 'info', 6000);
+        }
+        writeStorage('ngym_seen_version', version);
+    }
+
+    async function loadAppMetadata() {
+        try {
+            const response = await fetch('/manifest.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error('تعذر تحميل معلومات التطبيق');
+            const manifest = await response.json();
+            updateAppVersion(manifest.version || APP_VERSION_FALLBACK);
+        } catch (error) {
+            updateAppVersion(APP_VERSION_FALLBACK);
+            showError({ message: 'تعذر تحميل معلومات تحديث التطبيق.' });
+        }
+    }
+
+    async function shareApp() {
+        const shareData = {
+            title: 'NGym - تطبيق اللياقة الذكي',
+            text: 'جرّب تطبيق NGym للتدريب والتغذية ومتابعة التقدم.',
+            url: window.location.origin + '/'
+        };
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+                return;
+            }
+            await navigator.clipboard.writeText(shareData.url);
+            showToast('تم نسخ رابط التطبيق.', 'success');
+        } catch (error) {
+            if (error.name !== 'AbortError') showError({ message: 'تعذر مشاركة رابط التطبيق.' });
+        }
+    }
+
+    function rateApp() {
+        window.open(GOOGLE_PLAY_URL, '_blank', 'noopener,noreferrer');
+    }
+
+    function openSupportWhatsApp() {
+        const message = encodeURIComponent('مرحباً، أحتاج إلى مساعدة في تطبيق NGym.');
+        window.open(`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${message}`, '_blank', 'noopener,noreferrer');
     }
 }
 
@@ -238,6 +419,7 @@ function openModal(modalId) {
             const el = document.getElementById(id);
             if (el) el.value = fieldMap[id];
         }
+        if (modalId === 'settings-modal') renderLastVisit();
         if (u.gender) selectGender(u.gender);
     }
     modal.classList.remove('hidden');
@@ -276,6 +458,8 @@ function switchTab(tabId) {
             activeBtn.classList.remove('hover:text-slate-200');
             activeBtn.classList.add('text-emerald-400', 'bg-slate-800', 'shadow');
         }
+        currentTab = tabId;
+        saveAppState();
     } catch (e) { console.error("Error switching tab:", e); }
 }
 
@@ -453,6 +637,7 @@ function handleGifError(imgElement) {
 function openExerciseGifModal(exerciseId) {
     const exercise = exerciseDatabase.find(item => item.id === exerciseId);
     if (!exercise) return;
+    logEvent('exercise_viewed', { exercise_id: String(exercise.id), source: 'image_modal' });
     currentGifExercise = exercise;
 
     const modal = document.getElementById('exercise-gif-modal');
@@ -498,6 +683,7 @@ async function loadExerciseDatabase() {
         exerciseDatabase = await response.json();
     } catch (error) {
         exerciseDatabase = FALLBACK_WORKOUTS;
+        showToast('تعذر تحميل بيانات التمارين، تم تشغيل الوضع البديل.', 'warning');
     }
 
     try {
@@ -506,6 +692,7 @@ async function loadExerciseDatabase() {
         exerciseGifManifest = await response.json();
     } catch (error) {
         console.error('تعذر تحميل فهرس صور التمارين:', error);
+        showToast('تعذر تحميل صور التمارين، سيتم استخدام الوضع البديل.', 'warning');
         exerciseGifManifest = {};
     }
 
@@ -589,6 +776,7 @@ function toggleFavorite(id) {
 
 function openExerciseModal(id, name, muscle, met) {
     currentExercise = { id, name, muscle, met };
+    logEvent('exercise_viewed', { exercise_id: String(id), source: 'exercise_modal' });
     const input = document.getElementById('exercise-name');
     if (input) input.value = name;
     openModal('exercise-modal');
@@ -610,6 +798,8 @@ async function handleSendMessage() {
 
     let msgId;
     let requestTimeoutId;
+    let retryText = '';
+    let retryImage = null;
     try {
         if (!input) return;
 
@@ -617,10 +807,16 @@ async function handleSendMessage() {
         if (!text && !selectedBase64Image) return;
 
         const currentImage = selectedBase64Image;
+        retryText = text;
+        retryImage = currentImage;
         input.value = '';
         clearChatImage();
 
         renderChatMessage('user', text, true, currentImage);
+        logEvent('chat_message_sent', {
+            has_image: Boolean(currentImage),
+            message_length: text.length
+        });
 
         if (!navigator.onLine) {
             addToPendingQueue(text);
@@ -665,6 +861,14 @@ async function handleSendMessage() {
         const fallback = '🎯 واصل الالتزام بخطتك الغذائية!';
         updateChatMessage(msgId, fallback);
         saveChatMessage('assistant', fallback);
+        showError({
+            userMessage: 'تعذر الاتصال بالمدرب، تحقق من الإنترنت',
+            retry: () => {
+                if (input) input.value = retryText;
+                selectedBase64Image = retryImage;
+                handleSendMessage();
+            }
+        });
     } finally {
         if (requestTimeoutId) clearTimeout(requestTimeoutId);
         if (sendButton) {
@@ -749,6 +953,7 @@ function saveChatMessage(sender, text, image = null) {
     history.push({ sender, text, image, time: new Date().toISOString() });
     if (history.length > 50) history.shift();
     localStorage.setItem('chatHistory', JSON.stringify(history));
+    saveAppState();
 }
 
 function renderChatMessage(sender, text, save = true, image = null) {
@@ -810,7 +1015,10 @@ async function retryPendingMessages() {
             const data = await parseApiResponse(res);
             renderChatMessage('assistant', data.reply || 'تم الرد', true);
             await new Promise(r => setTimeout(r, 500));
-        } catch (e) { failedMessages.push(msg); }
+        } catch (e) {
+            failedMessages.push(msg);
+            showError({ message: 'تعذر إعادة إرسال إحدى رسائل الدردشة.' });
+        }
     }
     localStorage.setItem('pendingChatQueue', JSON.stringify(failedMessages));
     if (failedMessages.length > 0) setTimeout(retryPendingMessages, 60000);
@@ -990,7 +1198,10 @@ async function loadAdminCodes() {
                 <span class="text-slate-400">${data.days || 30} يوم</span>
             </div>`;
         }).join('');
-    } catch (e) { container.innerHTML = '<div class="text-red-400">خطأ في التحميل</div>'; }
+    } catch (e) {
+        container.innerHTML = '<div class="text-red-400">خطأ في التحميل</div>';
+        showError({ message: 'تعذر تحميل أكواد الاشتراك.', retry: loadAdminCodes });
+    }
 }
 
 async function checkSubscriptionStatus() {
@@ -1023,9 +1234,11 @@ async function updateSubscriptionUI() {
     if (remaining === 0) {
         if (chatInput) chatInput.style.display = 'none';
         if (renewBtn) {
+            logEvent('subscription_expired');
             renewBtn.classList.remove('hidden');
             renewBtn.textContent = '📱 تجديد عبر الواتساب';
             renewBtn.onclick = () => {
+                logEvent('whatsapp_click', { source: 'subscription_renewal' });
                 const msg = encodeURIComponent('مرحباً، أريد تجديد اشتراكي في NGym PRO. حسابي: @newton_2000_');
                 window.open(`https://wa.me/972569699311?text=${msg}`, '_blank');
             };
@@ -1060,7 +1273,9 @@ async function generateCode(days) {
         const code = result.code;
         alert(`✅ كود جديد:\n${code}`);
         loadAdminCodes();
-    } catch (e) { alert(e.message || "حدث خطأ"); }
+    } catch (e) {
+        showError({ message: e.message || 'تعذر إنشاء كود الاشتراك.', retry: () => generateCode(days) });
+    }
 }
 
 async function redeemSubscriptionCode(code) {
@@ -1076,7 +1291,7 @@ async function redeemSubscriptionCode(code) {
         alert("✅ تم التفعيل!");
         updateDashboardUI();
     } catch (error) {
-        alert(error.message || "فشل التحقق");
+        showError({ message: error.message || 'فشل التحقق من كود الاشتراك.', retry: () => redeemSubscriptionCode(code) });
     }
 }
 
@@ -1093,6 +1308,7 @@ function handleOnboardingSubmit(e) {
         activity: document.getElementById('select-activity').value,
         apiKey: document.getElementById('input-api-key').value
     });
+    logEvent('onboarding_completed', { step: 2 });
     closeModal('onboarding-modal');
 }
 
@@ -1156,12 +1372,16 @@ async function verifyAdmin() {
         document.getElementById('admin-login-section').classList.add('hidden');
         document.getElementById('admin-dashboard-section').classList.remove('hidden');
         loadAdminCodes();
-    } catch (error) { alert(`❌ ${error.message}`); }
+    } catch (error) {
+        showError({ message: error.message || 'تعذر تسجيل دخول المشرف.', retry: verifyAdmin });
+    }
 }
 
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM loaded');
+    recordAppOpen();
+    loadAppMetadata();
     initializeSplashReadiness();
     window.setTimeout(hideSplash, 5000);
     if ('serviceWorker' in navigator) {
@@ -1172,14 +1392,25 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(registration => { fcmServiceWorkerRegistration = registration; })
             .catch(error => console.error('تعذر تسجيل Firebase Messaging Service Worker:', error));
     }
-    window.addEventListener('offline', showOfflineBanner);
-    window.addEventListener('online', hideOfflineBanner);
+    window.addEventListener('offline', () => {
+        showOfflineBanner();
+        showToast('أنت غير متصل بالإنترنت.', 'warning');
+    });
+    window.addEventListener('online', () => {
+        hideOfflineBanner();
+        showToast('تم استعادة الاتصال بالإنترنت.', 'success');
+    });
     if (!navigator.onLine) showOfflineBanner();
-    loadExerciseDatabase().then(loadChatHistory);
+    loadExerciseDatabase().then(() => {
+        loadChatHistory();
+        restoreAppState();
+    });
     updateDashboardUI();
     loadReminderSettings();
     startReminderChecker();
     setupAdminPanel();
+    appStateInterval = window.setInterval(saveAppState, 30000);
+    window.addEventListener('beforeunload', saveAppState);
 
     window.addEventListener('online', retryPendingMessages);
 
