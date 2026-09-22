@@ -1523,6 +1523,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    window.signInWithGoogle = signInWithGoogle;
+
     function initializeGoogleAuthentication() {
         const authApi = window.NGYM_MODULAR_AUTH;
         const button = document.getElementById('google-signin-btn');
