@@ -1377,6 +1377,20 @@ async function verifyAdmin() {
     }
 }
 
+async function recordAppOpen() {
+    const user = window.NGYM_MODULAR_AUTH?.auth?.currentUser
+        || window.firebase?.auth?.()?.currentUser;
+    if (!user?.uid) return;
+
+    try {
+        await db.collection('users').doc(user.uid).set({
+            lastOpenedAt: new Date().toISOString()
+        }, { merge: true });
+    } catch (error) {
+        console.error('تعذر تسجيل آخر فتح للتطبيق:', error);
+    }
+}
+
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM loaded');
