@@ -1391,12 +1391,36 @@ async function recordAppOpen() {
     }
 }
 
+async function loadAppMetadata() {
+    const fallbackVersion = '1.0.0';
+    try {
+        const response = await fetch('/manifest.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error('تعذر تحميل معلومات التطبيق');
+        const manifest = await response.json();
+        const element = document.getElementById('app-version');
+        if (element) element.textContent = manifest.version || fallbackVersion;
+    } catch (error) {
+        const element = document.getElementById('app-version');
+        if (element) element.textContent = fallbackVersion;
+        showError({ message: 'تعذر تحميل معلومات تحديث التطبيق.' });
+    }
+}
+
 // ---- Initialization ----
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
     console.log('✅ DOM loaded');
-    recordAppOpen();
-    loadAppMetadata();
-    initializeSplashReadiness();
+    const tasks = [
+        { name: 'recordAppOpen', fn: recordAppOpen },
+        { name: 'loadAppMetadata', fn: loadAppMetadata },
+        { name: 'initializeSplashReadiness', fn: initializeSplashReadiness }
+    ];
+    for (const task of tasks) {
+        try {
+            if (typeof task.fn === 'function') await task.fn();
+        } catch (e) {
+            console.error(`فشل ${task.name}:`, e);
+        }
+    }
     window.setTimeout(hideSplash, 5000);
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
