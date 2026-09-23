@@ -58,7 +58,8 @@ function showToast(message, type = 'info', duration = 3000, retryAction = null) 
             toast.remove();
             retryAction();
         });
-        toast.appendChild(retryButton);
+
+                toast.appendChild(retryButton);
     }
     container.appendChild(toast);
     window.setTimeout(() => toast.remove(), duration);
@@ -1259,19 +1260,23 @@ function getRemainingTrialDays() {
     return remaining > 0 ? remaining : 0;
 }
 
-async function generateCode(days) {
+async function generateCode(days, phone = document.getElementById('admin-phone')?.value) {
     const token = sessionStorage.getItem('adminToken');
     if (!token) { alert("❌ يجب تسجيل الدخول أولاً."); return; }
     try {
         const response = await fetch('/api/admin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ action: 'generate', days: parseInt(days) || 30 })
+            body: JSON.stringify({ action: 'generate', days: parseInt(days) || 30, phone: normalizePhone(phone) })
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'فشل إنشاء الكود');
         const code = result.code;
         alert(`✅ كود جديد:\n${code}`);
+        const whatsapp = document.getElementById('whatsapp-result');
+        if (whatsapp && result.whatsappUrl) {
+            whatsapp.innerHTML = `<a class="text-emerald-400 underline" target="_blank" rel="noopener" href="${result.whatsappUrl}">إرسال الكود عبر واتساب</a>`;
+        }
         loadAdminCodes();
     } catch (e) {
         showError({ message: e.message || 'تعذر إنشاء كود الاشتراك.', retry: () => generateCode(days) });
@@ -1435,7 +1440,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         showToast('أنت غير متصل بالإنترنت.', 'warning');
     });
 
-    // ===== Google Authentication additions =====
+    // DEPRECATED: Google Authentication additions retained for rollback compatibility.
     function getAuthenticatedUid() {
         return window.NGYM_MODULAR_AUTH?.auth?.currentUser?.uid
             || window.firebase?.auth?.()?.currentUser?.uid
@@ -1649,3 +1654,132 @@ document.addEventListener('DOMContentLoaded', async function () {
         generateCode(duration);
     });
 });
+
+
+// Phone registration migration. The Google flow above is retained as // DEPRECATED
+        // compatibility code, but anonymous Firebase identities are now used for all users.
+        function normalizePhone(value) {
+            const raw = String(value || '').replace(/[^\d+]/g, '');
+            return raw.startsWith('+') ? `+${raw.slice(1).replace(/\D/g, '')}` : `+${raw.replace(/\D/g, '')}`;
+        }
+        function validatePhone(value) { return /^\+[1-9]\d{7,14}$/.test(normalizePhone(value)); }
+        function phoneAuthError(message) {
+            const target = document.getElementById('phone-error');
+            if (target) target.textContent = message;
+        }
+        function setPhoneAuthVisible(visible) {
+            const screen = document.getElementById('phone-screen');
+            if (!screen) return;
+            screen.hidden = !visible;
+            document.querySelectorAll('body > *:not(#phone-screen):not(#toast-container)').forEach(element => {
+                if (element.id !== 'splash-screen') element.hidden = visible;
+            });
+        }
+        async function authHeaders() {
+            const user = window.NGYM_MODULAR_AUTH?.auth?.currentUser;
+            const token = user ? await user.getIdToken() : '';
+            return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+        }
+        async function handlePhoneSubmit(event) {
+            event?.preventDefault();
+            const input = document.getElementById('phone-input');
+            if (!String(input?.value || '').trim().startsWith('+')) {
+                return phoneAuthError('يجب إدخال رقم دولي يبدأ بعلامة +');
+            }
+            const phone = normalizePhone(input?.value);
+            if (!validatePhone(phone)) return phoneAuthError('يرجى إدخال رقم هاتف دولي صحيح مثل +972501234567');
+            try {
+                const authApi = window.NGYM_MODULAR_AUTH;
+                await authApi.ensureAnonymousAuth();
+                const response = await fetch('/api/register', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ phone }) });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'تعذر تسجيل الرقم');
+                localStorage.setItem('ngym_phone', phone);
+                localStorage.setItem('trialEndDate', result.trialEndDate || '');
+                if (result.subscriptionEndDate) {
+                    localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
+                }
+                setPhoneAuthVisible(false);
+                await checkSubscriptionFromServer();
+            } catch (error) { phoneAuthError(error.message || 'تعذر تسجيل الرقم حالياً'); }
+        }
+        function handleShowCode() {
+            const form = document.getElementById('code-section');
+            if (form) form.hidden = !form.hidden;
+        }
+        async function handleActivateCode(event) {
+            event?.preventDefault();
+            const code = String(
+                document.getElementById('code-input')?.value
+                || document.getElementById('coach-code-input')?.value
+                || ''
+            ).trim().toUpperCase();
+            if (!/^NGYM-[A-Z0-9]{8,}$/.test(code)) return phoneAuthError('يرجى إدخال كود تفعيل صحيح');
+            try {
+                const response = await fetch('/api/activate', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ code }) });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'تعذر تفعيل الكود');
+                localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
+                phoneAuthError('تم تفعيل الاشتراك بنجاح');
+                setPhoneAuthVisible(false);
+                updateSubscriptionUI();
+            } catch (error) { phoneAuthError(error.message || 'تعذر تفعيل الكود'); }
+        }
+        async function checkSubscriptionFromServer() {
+            try {
+                const response = await fetch('/api/check-subscription', { method: 'POST', headers: await authHeaders(), body: '{}', cache: 'no-store' });
+                if (!response.ok) return;
+                const result = await response.json();
+                if (result.trialEndDate) localStorage.setItem('trialEndDate', result.trialEndDate);
+                if (result.subscriptionEndDate) localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
+                window.ngymSubscription = result;
+                window.currentSubscription = result;
+                updateSubscriptionStatus();
+                await updateSubscriptionUI();
+                const locked = document.getElementById('coach-locked');
+                const chatControls = document.querySelector('#sec-coach > .bg-slate-900');
+                if (locked) locked.classList.toggle('hidden', result.isCoachActive !== false);
+                if (chatControls) chatControls.classList.toggle('hidden', result.isCoachActive === false);
+            } catch (error) { console.warn('تعذر تحديث حالة الاشتراك:', error); }
+        }
+        function updateSubscriptionStatus() {
+            const state = window.currentSubscription;
+            if (!state) return;
+            const days = Number(state.daysRemaining || 0);
+            const daysElement = document.getElementById('days-remaining');
+            const typeElement = document.getElementById('subscription-type');
+            if (state.isCoachActive) {
+                if (daysElement) daysElement.textContent = `${days} يوم متبقي`;
+                if (typeElement) typeElement.textContent = state.subscriptionEndDate ? 'اشتراك نشط' : 'تجربة مجانية';
+            } else {
+                if (daysElement) daysElement.textContent = 'انتهت التجربة';
+                if (typeElement) typeElement.textContent = 'تواصل معنا للتفعيل';
+            }
+        }
+        window.updateSubscriptionStatus = updateSubscriptionStatus;
+        window.validatePhone = validatePhone;
+        window.normalizePhone = normalizePhone;
+        window.handlePhoneSubmit = handlePhoneSubmit;
+        window.handleShowCode = handleShowCode;
+        window.handleActivateCode = handleActivateCode;
+        window.addEventListener('load', () => {
+            document.getElementById('phone-auth-form')?.addEventListener('submit', handlePhoneSubmit);
+            document.getElementById('show-code-link')?.addEventListener('click', handleShowCode);
+            document.getElementById('code-section')?.addEventListener('submit', handleActivateCode);
+            document.getElementById('coach-code-form')?.addEventListener('submit', handleActivateCode);
+            document.getElementById('coach-whatsapp-btn')?.addEventListener('click', () => {
+                const phone = localStorage.getItem('ngym_phone') || '';
+                const message = encodeURIComponent('مرحباً، أريد تفعيل NGym لرقمي ' + phone);
+                window.open(`https://wa.me/97256969311?text=${message}`, '_blank');
+            });
+            const authApi = window.NGYM_MODULAR_AUTH;
+            if (!authApi) return;
+            authApi.onAuthStateChanged(authApi.auth, async user => {
+                splashAuthReady = true;
+                if (!user) { try { await authApi.ensureAnonymousAuth(); } catch (_) {} return; }
+                setPhoneAuthVisible(!localStorage.getItem('ngym_phone'));
+                await checkSubscriptionFromServer();
+                tryHideSplash();
+            });
+            window.setInterval(checkSubscriptionFromServer, 24 * 60 * 60 * 1000);
+        });

@@ -62,12 +62,22 @@ module.exports = async (req, res) => {
         }
 
         if (action === 'generate' && req.method === 'POST') {
-            const days = Math.min(3650, Math.max(1, Number.parseInt(body.days, 10) || 30));
+            const requestedDays = Number.parseInt(body.days, 10) || 30;
+            const days = [30, 90, 365].includes(requestedDays) ? requestedDays : 30;
+            const rawPhone = String(body.phone || '').replace(/[^\d+]/g, '');
+            if (!String(body.phone || '').trim().startsWith('+')) return res.status(400).json({ error: 'رقم الهاتف يجب أن يكون بصيغة دولية' });
+            const phone = rawPhone.startsWith('+') ? `+${rawPhone.slice(1).replace(/\D/g, '')}` : `+${rawPhone.replace(/\D/g, '')}`;
+            if (!/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: 'رقم الهاتف غير صالح ومطلوب' });
             const code = `NGYM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+            const now = new Date();
+            const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
             await db.collection('codes').doc(code).create({
-                days, isUsed: false, createdAt: new Date().toISOString()
+                code, phone, days, isUsed: false, usedAt: null, usedBy: null,
+                expiresAt, createdAt: now.toISOString()
             });
-            return res.status(201).json({ code });
+            const text = encodeURIComponent(`كود تفعيل NGym الخاص بك: ${code}\nصالح لمدة ${days} يوم.`);
+            const whatsappLink = `https://wa.me/${phone.replace('+', '')}?text=${text}`;
+            return res.status(201).json({ code, expiresAt, whatsappLink, whatsappUrl: whatsappLink });
         }
 
         return res.status(400).json({ error: 'عملية غير مدعومة' });

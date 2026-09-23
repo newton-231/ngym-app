@@ -149,7 +149,10 @@ module.exports = async function handler(req, res) {
             if (!hasActiveTrial && !hasActiveSubscription) {
                 await logSecurityFailure(db, uid, 'لا اشتراك نشط', req);
                 return res.status(403).json({
-                    error: 'لا يوجد اشتراك نشط'
+                    error: 'trial_expired',
+                    message: 'انتهت تجربتك المجانية. تواصل معنا على واتساب لتفعيل المدرب الذكي.',
+                    contact: 'https://wa.me/97256969311',
+                    phone: data.phone || null
                 });
             }
         } catch (firestoreError) {
