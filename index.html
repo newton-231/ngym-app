@@ -296,11 +296,15 @@
 
             <div class="flex gap-2 overflow-x-auto pb-2" id="filter-tabs">
                 <button data-filter="all" onclick="filterWorkouts('all')" class="filter-btn active-filter bg-emerald-500 text-slate-950 px-3 py-1 rounded-full text-xs font-semibold">الكل</button>
-                <button data-filter="home" onclick="filterWorkouts('home')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🏠 منزل</button>
+                <button data-filter="home_no_equip" onclick="filterWorkouts('home_no_equip')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🏠 بدون أدوات</button>
+                <button data-filter="home_dumbbell" onclick="filterWorkouts('home_dumbbell')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🏠 مع دمبل</button>
                 <button data-filter="gym" onclick="filterWorkouts('gym')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🏋️ نادي</button>
                 <button data-filter="chest" onclick="filterWorkouts('chest')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">صدر</button>
                 <button data-filter="back" onclick="filterWorkouts('back')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">ظهر</button>
-                <button data-filter="legs" onclick="filterWorkouts('legs')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">أرجل</button>
+                <button data-filter="legs_front" onclick="filterWorkouts('legs_front')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🦵 أمامي</button>
+                <button data-filter="legs_back" onclick="filterWorkouts('legs_back')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🍑 خلفي ومؤخرة</button>
+                <button data-filter="legs_calves" onclick="filterWorkouts('legs_calves')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">🦶 سمانة</button>
+                <button data-filter="shoulders" onclick="filterWorkouts('shoulders')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">💪 أكتاف</button>
                 <button data-filter="arms" onclick="filterWorkouts('arms')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">ذراعين</button>
                 <button data-filter="abs" onclick="filterWorkouts('abs')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">بطن</button>
                 <button data-filter="favorites" onclick="filterWorkouts('favorites')" class="filter-btn bg-slate-800 text-slate-300 hover:text-slate-200 px-3 py-1 rounded-full text-xs">⭐ مفضلة</button>
@@ -498,6 +502,7 @@
                     <label class="block text-slate-400 mb-1">اسم التمرين</label>
                     <input type="text" id="exercise-name" readonly class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 font-medium">
                 </div>
+                <div id="exercise-muscles-info"></div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-slate-400 mb-1">عدد الجولات</label>
