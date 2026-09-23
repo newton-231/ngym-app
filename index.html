@@ -177,6 +177,13 @@
                 <span id="subscription-status">⏳ جاري التحميل...</span>
                 <button id="renew-btn" class="hidden bg-emerald-600 text-slate-950 px-3 py-1 rounded-lg font-bold text-xs ml-2">تجديد الاشتراك</button>
             </div>
+            <div id="subscription-status-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                <h3 class="text-sm font-bold text-emerald-400">حالة الاشتراك</h3>
+                <div class="mt-2 flex justify-between text-xs text-slate-300">
+                    <span id="days-remaining">30 يوم متبقي</span>
+                    <span id="subscription-type">تجربة مجانية</span>
+                </div>
+            </div>
 
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex justify-between items-center shadow-sm">
                 <div class="flex items-center gap-3">
@@ -307,6 +314,15 @@
             <div id="pending-status" class="mb-2"></div>
             
             <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 p-1 text-xs"></div>
+            <div id="coach-locked" class="hidden bg-slate-900 border border-amber-700/50 rounded-2xl p-4 text-center">
+                <h3 class="text-sm font-bold text-amber-400">🎉 انتهت تجربتك المجانية</h3>
+                <p class="mt-2 text-xs text-slate-300">لتفعيل المدرب الذكي، تواصل معنا على واتساب</p>
+                <button id="coach-whatsapp-btn" type="button" class="mt-3 bg-emerald-600 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold">تواصل عبر واتساب</button>
+                <form id="coach-code-form" class="mt-3">
+                    <input id="coach-code-input" type="text" placeholder="NGYM-XXXX-XXXX" class="w-full bg-slate-800 rounded-xl p-2 text-center text-xs">
+                    <button type="submit" class="mt-2 bg-slate-700 text-white px-4 py-2 rounded-xl text-xs">تفعيل الكود</button>
+                </form>
+            </div>
 
             <div id="image-preview-container" class="hidden relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 shadow-md">
                 <img id="image-preview" src="" class="w-full h-full object-cover">
@@ -548,11 +564,14 @@
             <div id="admin-dashboard-section" class="hidden space-y-3">
                 <p class="text-xs text-emerald-400 font-semibold">مرحباً بك في لوحة التحكم الإدارية</p>
                 <div class="flex gap-2">
+                    <label for="admin-phone" class="sr-only">رقم هاتف العميل</label>
+                    <input type="tel" id="admin-phone" placeholder="+970 5X XXX XXXX" required class="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-1.5 text-xs text-center" dir="ltr">
                     <input type="number" id="code-duration" value="30" placeholder="الأيام" class="w-20 bg-slate-800 border border-slate-700 rounded-xl p-1.5 text-xs text-center">
                     <button id="generate-code-btn" class="flex-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold">
                         توليد كود
                     </button>
                 </div>
+                <div id="whatsapp-result" class="text-xs"></div>
                 <div id="codes-list" class="max-h-40 overflow-y-auto space-y-1"></div>
             </div>
         </div>
@@ -562,12 +581,13 @@
 </body>
 </html>
 
-<!-- Google Authentication additions are appended to preserve the existing markup. -->
+<!-- DEPRECATED: Google Authentication additions are retained for rollback compatibility. -->
 <script type="module">
     import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import {
         getAuth,
         signInWithPopup,
+        signInAnonymously,
         signOut,
         GoogleAuthProvider,
         onAuthStateChanged
@@ -587,6 +607,11 @@
 
     window.NGYM_MODULAR_AUTH = {
         auth: modularAuth,
+        signInAnonymously,
+        ensureAnonymousAuth: async () => {
+            const user = modularAuth.currentUser || (await signInAnonymously(modularAuth)).user;
+            return user.uid;
+        },
         signInWithPopup,
         signOut,
         provider,
@@ -594,7 +619,7 @@
     };
 
     const authScreen = document.createElement('section');
-    authScreen.id = 'auth-screen';
+    authScreen.id = 'phone-screen';
     authScreen.hidden = false;
     authScreen.innerHTML = `
         <div class="auth-card">
@@ -605,23 +630,32 @@
                 </svg>
             </div>
             <h1>NGym</h1>
-            <p>ابدأ رحلتك نحو جسم أقوى وحياة أكثر نشاطاً</p>
-            <button id="google-signin-btn" type="button">
+            <h2>ابدأ تجربتك المجانية 30 يوماً</h2>
+            <form id="phone-auth-form">
+                <input id="phone-input" type="tel" inputmode="tel" autocomplete="tel" placeholder="+970 5X XXX XXXX" aria-label="رقم الهاتف" required>
+                <button id="start-trial-btn" type="submit">ابدأ الآن 🚀</button>
+            </form>
+            <button id="show-code-link" type="button">لديك كود تفعيل؟</button>
+            <form id="code-section" hidden>
+                <input id="code-input" type="text" placeholder="NGYM-XXXX-XXXX" aria-label="كود التفعيل">
+                <button id="activate-code-btn" type="submit">تفعيل الكود</button>
+            </form>
+            <button id="google-signin-btn" type="button" class="deprecated-google" aria-hidden="true" tabindex="-1">
                 <span aria-hidden="true">G</span>
                 تسجيل الدخول بـ Google
             </button>
             <a href="/privacy.html">سياسة الخصوصية</a>
-            <div id="auth-error" role="alert" aria-live="polite"></div>
+            <div id="phone-error" role="alert" aria-live="polite"></div>
         </div>
     `;
     document.body.insertBefore(authScreen, document.getElementById('onboarding-modal') || document.body.firstChild);
     const authStyle = document.createElement('style');
     authStyle.textContent = `
-        #auth-screen {
+        #phone-screen {
             position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center;
             padding: 24px; background: radial-gradient(circle at top, #172554 0, #020617 55%, #000 100%);
         }
-        #auth-screen[hidden] { display: none; }
+        #phone-screen[hidden] { display: none; }
         .auth-card {
             width: min(100%, 390px); padding: 42px 28px 30px; text-align: center;
             background: rgba(15, 23, 42, .9); border: 1px solid rgba(52, 211, 153, .25);
@@ -630,7 +664,7 @@
         .auth-logo { width: 92px; height: 92px; margin: 0 auto 20px; filter: drop-shadow(0 0 20px rgba(16, 185, 129, .35)); }
         .auth-logo svg { width: 100%; height: 100%; }
         .auth-card h1 { margin: 0; color: #34d399; font-size: 2.35rem; font-weight: 900; }
-        .auth-card p { margin: 8px 0 28px; color: #94a3b8; font-size: .85rem; line-height: 1.8; }
+        .auth-card h2 { margin: 8px 0 28px; color: #94a3b8; font-size: 1rem; line-height: 1.8; }
         #google-signin-btn {
             width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
             padding: 13px 16px; border: 0; border-radius: 14px; background: #fff; color: #1e293b;
@@ -639,7 +673,12 @@
         #google-signin-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,255,255,.15); }
         #google-signin-btn span { color: #4285f4; font-size: 1.2rem; font-weight: 900; }
         .auth-card > a { display: inline-block; margin-top: 22px; color: #6ee7b7; font-size: .75rem; text-decoration: underline; }
-        #auth-error { min-height: 20px; margin-top: 14px; color: #fca5a5; font-size: .75rem; }
+        #phone-error { min-height: 20px; margin-top: 14px; color: #fca5a5; font-size: .75rem; }
+        #phone-input, #code-input { width: 100%; padding: 13px; border-radius: 14px; border: 1px solid #334155; background: #1e293b; color: #fff; text-align: center; direction: ltr; margin-bottom: 10px; }
+        #start-trial-btn, #activate-code-btn { width: 100%; padding: 13px; border: 0; border-radius: 14px; background: #10b981; color: #022c22; font-weight: 800; cursor: pointer; }
+        #show-code-link { width: 100%; margin-top: 10px; background: transparent; border: 0; color: #6ee7b7; text-decoration: underline; cursor: pointer; }
+        .auth-card a { color: #6ee7b7; }
+        .deprecated-google { display: none !important; }
     `;
     document.head.appendChild(authStyle);
     const settingsModal = document.getElementById('settings-modal');
