@@ -1825,7 +1825,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "triceps"
     ],
@@ -1851,7 +1851,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -4114,7 +4114,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -4600,7 +4600,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5465,7 +5465,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "triceps"
     ],
@@ -7052,7 +7052,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -7076,7 +7076,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -16476,7 +16476,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -22252,7 +22252,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],

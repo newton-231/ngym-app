@@ -10,7 +10,7 @@ function db() {
     }
     return admin.firestore();
 }
-function phone(value) {
+function normalizePhone(value) {
     const valueString = String(value || '').replace(/[^\d+]/g, '');
     const normalized = valueString.startsWith('+') ? `+${valueString.slice(1).replace(/\D/g, '')}` : `+${valueString.replace(/\D/g, '')}`;
     return /^\+[1-9]\d{7,14}$/.test(normalized) ? normalized : null;
@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
         if (!String(body.phone || '').trim().startsWith('+')) {
             return res.status(400).json({ error: 'رقم الهاتف يجب أن يكون بصيغة دولية' });
         }
-        const normalized = phone(body.phone);
+        const normalized = normalizePhone(body.phone);
         if (!normalized) return res.status(400).json({ error: 'رقم الهاتف غير صالح' });
         const database = db();
         const userRef = database.collection('users').doc(userId);
@@ -70,5 +70,5 @@ module.exports = async (req, res) => {
         return res.status(500).json({ error: 'تعذر تسجيل الحساب حالياً' });
     }
 };
-module.exports.normalizePhone = phone;
+module.exports.normalizePhone = normalizePhone;
 module.exports.getDatabase = db;

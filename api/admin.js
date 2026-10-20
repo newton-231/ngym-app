@@ -1,4 +1,10 @@
 const crypto = require('crypto');
+
+function normalizePhone(value) {
+    const raw = String(value || '').replace(/[^\d+]/g, '');
+    const normalized = raw.startsWith('+') ? `+${raw.slice(1).replace(/\D/g, '')}` : `+${raw.replace(/\D/g, '')}`;
+    return /^\+[1-9]\d{7,14}$/.test(normalized) ? normalized : null;
+}
 const admin = require('firebase-admin');
 
 function getAdminApp() {
@@ -64,10 +70,9 @@ module.exports = async (req, res) => {
         if (action === 'generate' && req.method === 'POST') {
             const requestedDays = Number.parseInt(body.days, 10) || 30;
             const days = [30, 90, 365].includes(requestedDays) ? requestedDays : 30;
-            const rawPhone = String(body.phone || '').replace(/[^\d+]/g, '');
             if (!String(body.phone || '').trim().startsWith('+')) return res.status(400).json({ error: 'رقم الهاتف يجب أن يكون بصيغة دولية' });
-            const phone = rawPhone.startsWith('+') ? `+${rawPhone.slice(1).replace(/\D/g, '')}` : `+${rawPhone.replace(/\D/g, '')}`;
-            if (!/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: 'رقم الهاتف غير صالح ومطلوب' });
+            const phone = normalizePhone(body.phone);
+            if (!phone) return res.status(400).json({ error: 'رقم الهاتف غير صالح ومطلوب' });
             const code = `NGYM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
             const now = new Date();
             const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();

@@ -14,6 +14,17 @@ const FALLBACK_WORKOUTS = [
     { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'abs', location: 'home', met: 4 }
 ];
 
+// Exercises excluded from the no-equipment filter because their names imply equipment.
+const HOME_BLACKLIST = [
+    'decline', 'bench', 'chin-up', 'pull-up', 'dip',
+    'hyperextension', 'cable', 'machine', 'lever'
+];
+
+// Map an exercise with an incorrect image to the ID of an exercise with the correct image.
+const IMAGE_OVERRIDES = {
+    // 'bad_exercise_id': 'good_exercise_id'
+};
+
 let exerciseDatabase = [];
 let exerciseGifManifest = {};
 let selectedBase64Image = null;
@@ -576,16 +587,22 @@ function getDirectExerciseImage(ex) {
 
 function getExerciseGifUrl(ex) {
     if (!ex) return EXERCISE_IMAGE_PLACEHOLDER;
+    const overrideId = IMAGE_OVERRIDES[ex.id];
+    if (overrideId && exerciseGifManifest[overrideId]) {
+        return `/assets/gifs/${exerciseGifManifest[overrideId]}`;
+    }
     const directImage = getDirectExerciseImage(ex);
     if (directImage) return directImage;
     const gifPath = ex.id ? exerciseGifManifest[ex.id] : '';
-    return gifPath ? `/assets/gifs/${gifPath}` : EXERCISE_IMAGE_PLACEHOLDER;
+    if (gifPath) return `/assets/gifs/${gifPath}`;
+    return EXERCISE_IMAGE_PLACEHOLDER;
 }
 
 function exerciseHasImage(ex) {
     const directImage = getDirectExerciseImage(ex);
     const isPlaceholder = directImage === EXERCISE_IMAGE_PLACEHOLDER || /(?:default|placeholder)\.(?:gif|png|jpg|jpeg|webp)$/i.test(directImage);
-    return Boolean(!isPlaceholder && (directImage || (ex?.id && exerciseGifManifest[ex.id])));
+    const gifId = IMAGE_OVERRIDES[ex?.id] || ex?.id;
+    return Boolean((gifId && exerciseGifManifest[gifId]) || (!isPlaceholder && directImage));
 }
 
 function escapeHtml(value) {
@@ -689,7 +706,11 @@ function renderWorkoutsList() {
         const favs = readJsonStorage('favorites', []);
         filtered = filtered.filter(ex => favs.includes(ex.id));
     } else if (currentFilter === 'home_no_equip') {
-        filtered = filtered.filter(ex => (ex.equipment || '').toLowerCase() === 'body only');
+        filtered = filtered.filter(ex => {
+            const nameLower = (ex.name || '').toLowerCase();
+            const isBlacklisted = HOME_BLACKLIST.some(word => nameLower.includes(word));
+            return (ex.equipment || '').toLowerCase() === 'body only' && !isBlacklisted;
+        });
     } else if (currentFilter === 'home_dumbbell') {
         filtered = filtered.filter(ex => (ex.equipment || '').toLowerCase() === 'dumbbell');
     } else if (currentFilter === 'gym') {
@@ -1714,7 +1735,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 return phoneAuthError('يجب إدخال رقم دولي يبدأ بعلامة +');
             }
             const phone = normalizePhone(input?.value);
-            if (!validatePhone(phone)) return phoneAuthError('يرجى إدخال رقم هاتف دولي صحيح مثل +972501234567');
+            if (!validatePhone(phone)) return phoneAuthError('يرجى إدخال رقم هاتف دولي صحيح مثل +1234567890');
             try {
                 const authApi = window.NGYM_MODULAR_AUTH;
                 await authApi.ensureAnonymousAuth();
