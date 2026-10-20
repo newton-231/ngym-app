@@ -1,14 +1,32 @@
-const CACHE_NAME = 'ngym-cache-v4';
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+    apiKey: 'AIzaSyDDZ6DRL_7n8gHaJH3I14ULAIKsUsT90Xw',
+    authDomain: 'ngym-app.firebaseapp.com',
+    projectId: 'ngym-app',
+    storageBucket: 'ngym-app.firebasestorage.app',
+    messagingSenderId: '1048781288073',
+    appId: '1:1048781288073:web:bf9cc9368331eabaf6cc58'
+});
+
+const messaging = firebase.messaging();
+messaging.onBackgroundMessage((payload) => {
+    const n = payload.notification || {};
+    self.registration.showNotification(n.title || 'NGym 🏋️', {
+        body: n.body || 'حان وقت التمرين!',
+        icon: n.icon || 'https://cdn-icons-png.flaticon.com/512/2964/2964514.png',
+        data: payload.data || {}
+    });
+});
+
+const CACHE_VERSION = 'ngym-v5';
+const STATIC_CACHE = `${CACHE_VERSION}-static`;
+const GIF_CACHE = `${CACHE_VERSION}-gifs`;
+
 const ASSETS_TO_CACHE = [
-    './',
-    './index.html',
-    './style.css',
-    './app.js',
-    './sw.js',
-    './firebase-messaging-sw.js',
-    './manifest.json',
-    './data/exercises.json',
-    './assets/gifs/manifest.json',
+    './', './index.html', './style.css', './app.js', './manifest.json',
+    './data/exercises.json', './assets/gifs/manifest.json',
     'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js',
     'https://cdn.tailwindcss.com',
@@ -17,66 +35,79 @@ const ASSETS_TO_CACHE = [
     'https://cdn-icons-png.flaticon.com/512/2964/2964514.png'
 ];
 
-// تثبيت ملف الـ Service Worker وتخزين الملفات الرئيسية
 self.addEventListener('install', (e) => {
+    self.skipWaiting();
     e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return Promise.all(ASSETS_TO_CACHE.map((asset) =>
-                cache.add(asset).catch((error) => {
-                    console.warn('تعذر تخزين المورد في الكاش:', asset, error);
-                })
-            ));
-        })
+        caches.open(STATIC_CACHE).then(cache =>
+            Promise.all(ASSETS_TO_CACHE.map(url =>
+                cache.add(url).catch(err => console.warn('فشل:', url, err))
+            ))
+        )
     );
 });
 
-// تفعيل وتحديث الكاش
 self.addEventListener('activate', (e) => {
     e.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.map((key) => {
-                    if (key !== CACHE_NAME) {
-                        return caches.delete(key);
-                    }
-                })
-            );
-        })
+        Promise.all([
+            self.clients.claim(),
+            caches.keys().then(keys => Promise.all(
+                keys.filter(k => k !== STATIC_CACHE && k !== GIF_CACHE)
+                    .map(k => caches.delete(k))
+            ))
+        ])
     );
 });
 
-// استرجاع البيانات أثناء تصفح التطبيق أوفلاين
 self.addEventListener('fetch', (e) => {
+    const url = new URL(e.request.url);
     if (e.request.method !== 'GET') return;
+    if (url.pathname.startsWith('/api/')) return;
+
+    // GIFs: cache-first
+    if (url.pathname.includes('/assets/gifs/')) {
+        e.respondWith(
+            caches.match(e.request).then(cached =>
+                cached || fetch(e.request).then(res => {
+                    if (res.ok) {
+                        const copy = res.clone();
+                        caches.open(GIF_CACHE).then(c => c.put(e.request, copy));
+                    }
+                    return res;
+                })
+            )
+        );
+        return;
+    }
+
+    // HTML/JS/CSS: network-first
     e.respondWith(
-        caches.match(e.request).then((cachedResponse) => {
-            const isExerciseImage = new URL(e.request.url).pathname.includes('/assets/gifs/');
-            if (cachedResponse && isExerciseImage) return cachedResponse;
-            return fetch(e.request).then((networkResponse) => {
-                if (networkResponse.ok && isExerciseImage) {
-                    const copy = networkResponse.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(e.request, copy));
-                }
-                return networkResponse;
-            }).catch(() => cachedResponse || caches.match('./index.html'));
-        })
+        fetch(e.request).then(res => {
+            if (res.ok) {
+                const copy = res.clone();
+                caches.open(STATIC_CACHE).then(c => c.put(e.request, copy));
+            }
+            return res;
+        }).catch(() =>
+            caches.match(e.request).then(cached =>
+                cached || (e.request.mode === 'navigate' ? caches.match('./index.html') : null)
+            )
+        )
     );
 });
 
 self.addEventListener('message', (event) => {
     if (event.data?.type === 'SHOW_NOTIFICATION') {
-        const title = event.data.title || 'NGym 🏋️';
-        const options = event.data.options || {};
-        event.waitUntil(self.registration.showNotification(title, options));
+        event.waitUntil(self.registration.showNotification(
+            event.data.title || 'NGym 🏋️', event.data.options || {}
+        ));
     }
 });
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     event.waitUntil(
-        clients.matchAll({ type: 'window' }).then((clientList) => {
-            if (clientList.length > 0) return clientList[0].focus();
-            return clients.openWindow('/');
-        })
+        clients.matchAll({ type: 'window' }).then(list =>
+            list.length ? list[0].focus() : clients.openWindow('/')
+        )
     );
 });
