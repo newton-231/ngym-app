@@ -6,6 +6,35 @@
 const fs = require('fs');
 const path = require('path');
 
+let fullExercises = null;
+function loadExercises() {
+    if (fullExercises) return fullExercises;
+    try {
+        fullExercises = JSON.parse(
+            fs.readFileSync(path.join(process.cwd(), 'data', 'exercises.json'), 'utf8')
+        );
+        return fullExercises;
+    } catch (e) {
+        console.error('فشل تحميل exercises.json:', e);
+        return [];
+    }
+}
+
+const MUSCLE_KEYWORDS = {
+    chest: ['chest', 'صدر', 'pectoral', 'bench press', 'push up', 'ضغط', 'بينش', 'بنج'],
+    back: ['back', 'ظهر', 'lats', 'lat', 'pull up', 'pull-up', 'row', 'سحب', 'عقلة', 'تجديف'],
+    shoulders: ['shoulder', 'أكتاف', 'كتف', 'delt', 'press over', 'رفرفة'],
+    biceps: ['biceps', 'باي', 'curl', 'مرجحة', 'بايسبس'],
+    triceps: ['triceps', 'تراي', 'extension', 'ترايسبس', 'ديبس', 'dips'],
+    legs_front: ['quad', 'أمامي', 'squat', 'سكوات', 'قرفصاء', 'lunge', 'طعن', 'فخذ أمامي'],
+    legs_back: ['hamstring', 'خلفي', 'glute', 'مؤخرة', 'deadlift', 'رفعة ميتة', 'rdl'],
+    legs: ['legs', 'leg', 'أرجل', 'رجل'],
+    calves: ['calf', 'سمانة', 'calves'],
+    abs: ['ab', 'abs', 'بطن', 'crunch', 'بلانك', 'plank', 'سيت أب'],
+    forearms: ['forearm', 'ساعد', 'wrist'],
+    traps: ['trap', 'ترابيس', 'shrug', 'رفع أكتاف']
+};
+
 const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
 const WINDOW_MS = 60 * 60 * 1000;
@@ -20,53 +49,108 @@ setInterval(() => {
     }
 }, 10 * 60 * 1000);
 
+function getRelevantExercises(userMessage, maxCount = 25) {
+    const all = loadExercises();
+    if (!all.length) return [];
 
-// ==========================================
-// 1. تحميل فهرس التمارين (مرة واحدة عند التشغيل)
-// ==========================================
-function loadExerciseCatalog() {
-    try {
-        const exercises = JSON.parse(
-            fs.readFileSync(path.join(process.cwd(), 'data', 'exercises.json'), 'utf8')
-        );
-        const manifestPath = path.join(process.cwd(), 'assets', 'gifs', 'manifest.json');
-        let manifest = {};
-        try {
-            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-        } catch (e) {
-            console.warn('manifest.json غير موجود، سيتم المتابعة بدونه');
+    const msg = String(userMessage || '').toLowerCase();
+    const matchedMuscles = new Set();
+
+    for (const [muscle, keywords] of Object.entries(MUSCLE_KEYWORDS)) {
+        if (keywords.some(keyword => msg.includes(keyword.toLowerCase()))) {
+            matchedMuscles.add(muscle);
         }
-        
-        return exercises.map(exercise => {
-            const name = exercise.name_en || exercise.name || exercise.id;
-            const arabicName = exercise.name_ar || exercise.arabic_name || '';
-            const hasGif = manifest[exercise.id] ? ' | GIF available' : '';
-            return `${exercise.id} | ${arabicName ? `${arabicName} / ` : ''}${name}${hasGif}`;
-        }).join('\n');
-    } catch (error) {
-        console.error('تعذر تحميل فهرس التمارين:', error);
-        return '';
     }
+
+    let filtered = all;
+
+    if (matchedMuscles.size > 0) {
+        const muscleMap = {
+            chest: ['chest', 'pectorals'],
+            back: ['lats', 'middle back', 'lower back'],
+            shoulders: ['shoulders'],
+            biceps: ['biceps'],
+            triceps: ['triceps'],
+            legs_front: ['quadriceps', 'adductors'],
+            legs_back: ['hamstrings', 'glutes', 'abductors'],
+            legs: ['quadriceps', 'adductors', 'hamstrings', 'glutes', 'abductors', 'calves'],
+            calves: ['calves'],
+            abs: ['abdominals'],
+            forearms: ['forearms'],
+            traps: ['traps']
+        };
+
+        const targetMuscles = [];
+        for (const muscle of matchedMuscles) {
+            targetMuscles.push(...(muscleMap[muscle] || []));
+        }
+
+        filtered = all.filter(exercise =>
+            (exercise.primaryMuscles || []).some(primary =>
+                targetMuscles.includes(primary.toLowerCase())
+            )
+        );
+    }
+
+    if (msg.includes('منزل') || msg.includes('home') || msg.includes('بدون أدوات')) {
+        filtered = filtered.filter(exercise =>
+            (exercise.equipment || '').toLowerCase() === 'body only'
+        );
+    } else if (msg.includes('دمبل') || msg.includes('dumbbell')) {
+        filtered = filtered.filter(exercise =>
+            (exercise.equipment || '').toLowerCase() === 'dumbbell'
+        );
+    } else if (msg.includes('بار') || msg.includes('barbell')) {
+        filtered = filtered.filter(exercise =>
+            (exercise.equipment || '').toLowerCase() === 'barbell'
+        );
+    }
+
+    if (filtered.length === 0) {
+        filtered = all.slice(0, maxCount);
+    }
+
+    return filtered.slice(0, maxCount);
 }
 
-const exerciseCatalog = loadExerciseCatalog();
+function formatExercisesForPrompt(exercises) {
+    return exercises.map(exercise => {
+        const arName = exercise.name_ar || exercise.arabic_name || '';
+        const enName = exercise.name_en || exercise.name || '';
+        const muscles = (exercise.primaryMuscles || []).join(',');
+        const equipment = exercise.equipment || 'none';
+        return `${exercise.id} | ${arName}${arName && enName ? ' / ' : ''}${enName} | muscles:${muscles} | equipment:${equipment}`;
+    }).join('\n');
+}
 
-// ==========================================
-// 2. بناء تعليمات النظام
-// ==========================================
-const baseSystemInstruction = `أنت مدرب تمارين ولياقة بدنية. أجب بالعربية عند الإمكان، واحتفظ بأسماء التمارين الإنجليزية عند الحاجة.
-قائمة التمارين ومعرفاتها:
-${exerciseCatalog}
+function buildBaseInstruction(userMessage) {
+    const relevant = getRelevantExercises(userMessage);
+    const catalogText = formatExercisesForPrompt(relevant);
+    console.log(`📚 التمارين المرسلة إلى Gemini (${relevant.length}):\n${catalogText}`);
 
-عندما تقترح أو تشرح تمرينًا له GIF متاح، أضف وسمًا في سطر مستقل بالصيغة [GIF: exercise_id] باستخدام المعرف الموجود في القائمة. لا تستخدم هذا الوسم إلا للمعرفات الصحيحة.`;
+    return `أنت مدرب تمارين ولياقة بدنية. أجب بالعربية عند الإمكان، واحتفظ بأسماء التمارين الإنجليزية عند الحاجة.
 
-function buildSystemInstruction(userContext) {
-    if (!userContext) return baseSystemInstruction;
-    return `${baseSystemInstruction}
+التمارين المتاحة (${relevant.length} تمرين، فقط ما يطابق سؤال المستخدم):
+${catalogText}
 
-سياق المستخدم الحالي (بيانات شخصية وسجل اليوم، استخدمه لتخصيص الإجابة):
+عندما تقترح تمريناً له GIF، أضف وسم [GIF: exercise_id] في سطر مستقل باستخدام المعرّف من القائمة أعلاه.
+إذا احتاج المستخدم تمريناً غير موجود، اقترح تمريناً مشابهاً من القائمة أو قل "لا يوجد في القائمة الحالية".
+
+قواعد:
+
+- اقترح فقط تمارين من القائمة أعلاه.
+- لا تخترع معرّفات.
+- إذا لم تفهم السؤال، اطلب توضيحاً.`;
+}
+
+function buildSystemInstruction(userContext, userMessage) {
+    const base = buildBaseInstruction(userMessage);
+    if (!userContext) return base;
+    return `${base}
+
+سياق المستخدم الحالي:
 ${JSON.stringify(userContext)}
-اعتمد على الهدف والنشاط والسعرات الفعلية في تقديم النصيحة.`;
+اعتمد على الهدف والنشاط والسعرات في التقديم.`;
 }
 
 // ==========================================
@@ -151,7 +235,7 @@ module.exports = async function handler(req, res) {
                 return res.status(403).json({
                     error: 'trial_expired',
                     message: 'انتهت تجربتك المجانية. تواصل معنا على واتساب لتفعيل المدرب الذكي.',
-                    contact: 'https://wa.me/97256969311',
+                    contact: 'https://wa.me/972569699311',
                     phone: data.phone || null
                 });
             }
@@ -190,7 +274,7 @@ module.exports = async function handler(req, res) {
 
         // بناء الطلب
         const requestBody = {
-            system_instruction: { parts: [{ text: buildSystemInstruction(userContext) }] },
+            system_instruction: { parts: [{ text: buildSystemInstruction(userContext, userMessage) }] },
             contents: [{
                 parts: [{ text: String(userMessage) }]
             }]

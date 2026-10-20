@@ -226,81 +226,53 @@ function readStorageValue(key, fallback = null) {
         console.warn(`تعذر قراءة التخزين المحلي: ${key}`, error);
         return fallback;
     }
+}
 
-    const APP_VERSION_FALLBACK = '1.0.0';
-    const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.ngym.app';
-    const SUPPORT_WHATSAPP_NUMBER = '972569699311';
+const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.ngym.app';
+const SUPPORT_WHATSAPP_NUMBER = '972569699311';
 
-    function formatLastVisit(timestamp) {
-        const elapsedHours = Math.max(0, Math.floor((Date.now() - timestamp) / 3600000));
-        if (elapsedHours < 1) return 'آخر زيارة: منذ أقل من ساعة';
-        if (elapsedHours === 1) return 'آخر زيارة: منذ ساعة';
-        return `آخر زيارة: منذ ${elapsedHours} ساعات`;
+function formatLastVisit(timestamp) {
+    const elapsedHours = Math.max(0, Math.floor((Date.now() - timestamp) / 3600000));
+    if (elapsedHours < 1) return 'آخر زيارة: منذ أقل من ساعة';
+    if (elapsedHours === 1) return 'آخر زيارة: منذ ساعة';
+    return `آخر زيارة: منذ ${elapsedHours} ساعات`;
+}
+
+function renderLastVisit() {
+    const previousVisit = Number(readStorageValue('ngym_last_visit', 0));
+    const element = document.getElementById('last-visit');
+    if (element) {
+        element.textContent = previousVisit > 0
+            ? formatLastVisit(previousVisit)
+            : 'آخر زيارة: هذه هي الزيارة الأولى';
     }
+}
 
-    function renderLastVisit() {
-        const previousVisit = Number(readStorageValue('ngym_last_visit', 0));
-        const element = document.getElementById('last-visit');
-        if (element) {
-            element.textContent = previousVisit > 0
-                ? formatLastVisit(previousVisit)
-                : 'آخر زيارة: هذه هي الزيارة الأولى';
+async function shareApp() {
+    const shareData = {
+        title: 'NGym - تطبيق اللياقة الذكي',
+        text: 'جرّب تطبيق NGym للتدريب والتغذية ومتابعة التقدم.',
+        url: window.location.origin + '/'
+    };
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+            return;
         }
+        await navigator.clipboard.writeText(shareData.url);
+        showToast('تم نسخ رابط التطبيق.', 'success');
+    } catch (error) {
+        if (error.name !== 'AbortError') showError({ message: 'تعذر مشاركة رابط التطبيق.' });
     }
+}
 
-    function recordAppOpen() {
-        renderLastVisit();
-        writeStorage('ngym_last_visit', Date.now());
-    }
+function rateApp() {
+    window.open(GOOGLE_PLAY_URL, '_blank', 'noopener,noreferrer');
+}
 
-    function updateAppVersion(version) {
-        const element = document.getElementById('app-version');
-        if (element) element.textContent = version;
-        const previousVersion = readStorageValue('ngym_seen_version', '');
-        if (previousVersion && previousVersion !== version) {
-            showToast(`جديد! يتوفر تحديث للتطبيق (${version}).`, 'info', 6000);
-        }
-        writeStorage('ngym_seen_version', version);
-    }
-
-    async function loadAppMetadata() {
-        try {
-            const response = await fetch('/manifest.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error('تعذر تحميل معلومات التطبيق');
-            const manifest = await response.json();
-            updateAppVersion(manifest.version || APP_VERSION_FALLBACK);
-        } catch (error) {
-            updateAppVersion(APP_VERSION_FALLBACK);
-            showError({ message: 'تعذر تحميل معلومات تحديث التطبيق.' });
-        }
-    }
-
-    async function shareApp() {
-        const shareData = {
-            title: 'NGym - تطبيق اللياقة الذكي',
-            text: 'جرّب تطبيق NGym للتدريب والتغذية ومتابعة التقدم.',
-            url: window.location.origin + '/'
-        };
-        try {
-            if (navigator.share) {
-                await navigator.share(shareData);
-                return;
-            }
-            await navigator.clipboard.writeText(shareData.url);
-            showToast('تم نسخ رابط التطبيق.', 'success');
-        } catch (error) {
-            if (error.name !== 'AbortError') showError({ message: 'تعذر مشاركة رابط التطبيق.' });
-        }
-    }
-
-    function rateApp() {
-        window.open(GOOGLE_PLAY_URL, '_blank', 'noopener,noreferrer');
-    }
-
-    function openSupportWhatsApp() {
-        const message = encodeURIComponent('مرحباً، أحتاج إلى مساعدة في تطبيق NGym.');
-        window.open(`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${message}`, '_blank', 'noopener,noreferrer');
-    }
+function openSupportWhatsApp() {
+    const message = encodeURIComponent('مرحباً، أحتاج إلى مساعدة في تطبيق NGym.');
+    window.open(`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${message}`, '_blank', 'noopener,noreferrer');
 }
 
 function getDeviceId() {
@@ -541,8 +513,8 @@ function updateDashboardUI() {
     const eatenPro = parseInt(localStorage.getItem('todayEatenProtein')) || 0;
     const eatenCarb = parseInt(localStorage.getItem('todayEatenCarbs')) || 0;
     const eatenFat = parseInt(localStorage.getItem('todayEatenFats')) || 0;
-    const netTarget = targets.calories + burnedCal;
-    const remaining = netTarget - eatenCal;
+    const netTarget = targets.calories;
+    const remaining = Math.max(0, netTarget - eatenCal);
 
     const elements = {
         'target-calories': targets.calories, 'eaten-calories': eatenCal,
@@ -1238,59 +1210,70 @@ async function loadAdminCodes() {
     }
 }
 
-async function checkSubscriptionStatus() {
-    const endDate = localStorage.getItem('subscriptionEndDate');
-    if (!endDate) return 'active';
-    return new Date() > new Date(endDate) ? 'expired' : 'active';
-}
-
 async function updateSubscriptionUI() {
-    const status = await checkSubscriptionStatus();
     const remaining = getRemainingTrialDays();
-    const banner = document.getElementById('subscription-banner');
+    const subscriptionEndDate = localStorage.getItem('subscriptionEndDate');
+    const subscriptionEnd = subscriptionEndDate ? new Date(subscriptionEndDate) : null;
+    const isPaid = Boolean(subscriptionEnd && !Number.isNaN(subscriptionEnd.getTime()) && subscriptionEnd > new Date());
+    const isActive = remaining > 0;
+
     const statusText = document.getElementById('subscription-status');
-    const renewBtn = document.getElementById('renew-btn');
     if (statusText) {
-        if (remaining > 0) {
-            statusText.textContent = `✅ تجربة مجانية: ${remaining} يوم متبقي`;
-        } else {
-            statusText.textContent = '⛔ انتهت الفترة التجريبية';
-        }
-    }
-    if (status === 'expired') {
-        if (banner) banner.classList.remove('hidden');
-        if (renewBtn) renewBtn.classList.remove('hidden');
-    } else {
-        if (renewBtn) renewBtn.classList.add('hidden');
+        const type = isPaid ? 'اشتراك نشط' : 'تجربة مجانية';
+        statusText.textContent = isActive
+            ? `✅ ${type}: ${remaining} يوم متبقي`
+            : '⛔ انتهت الفترة التجريبية';
     }
 
-    const chatInput = document.querySelector('.chat-input-container') || document.getElementById('chat-input')?.parentElement;
-    if (remaining === 0) {
-        if (chatInput) chatInput.style.display = 'none';
-        if (renewBtn) {
-            logEvent('subscription_expired');
-            renewBtn.classList.remove('hidden');
+    const banner = document.getElementById('subscription-banner');
+    if (banner) banner.classList.toggle('hidden', isActive);
+
+    const daysEl = document.getElementById('days-remaining');
+    if (daysEl) daysEl.textContent = isActive ? `${remaining} يوم متبقي` : 'منتهي';
+
+    const typeEl = document.getElementById('subscription-type');
+    if (typeEl) typeEl.textContent = isActive ? (isPaid ? 'اشتراك نشط' : 'تجربة مجانية') : 'تواصل معنا للتفعيل';
+
+    const renewBtn = document.getElementById('renew-btn');
+    if (renewBtn) {
+        renewBtn.classList.toggle('hidden', isActive);
+        if (!isActive) {
             renewBtn.textContent = '📱 تجديد عبر الواتساب';
             renewBtn.onclick = () => {
                 logEvent('whatsapp_click', { source: 'subscription_renewal' });
-                const msg = encodeURIComponent('مرحباً، أريد تجديد اشتراكي في NGym PRO. حسابي: @newton_2000_');
+                const msg = encodeURIComponent('مرحباً، أريد تجديد اشتراكي في NGym. حسابي: @newton_2000_');
                 window.open(`https://wa.me/972569699311?text=${msg}`, '_blank');
             };
         }
-    } else {
-        if (chatInput) chatInput.style.display = 'flex';
-        if (renewBtn) renewBtn.classList.add('hidden');
     }
+
+    const chatInput = document.querySelector('.chat-input-container') || document.getElementById('chat-input')?.parentElement;
+    const coachLocked = document.getElementById('coach-locked');
+    if (chatInput) chatInput.style.display = isActive ? 'flex' : 'none';
+    if (coachLocked) coachLocked.style.display = isActive ? 'none' : 'block';
 }
 
 function getRemainingTrialDays() {
-    const startDate = localStorage.getItem('subscriptionStartDate');
-    if (!startDate) return 30;
-    const start = new Date(startDate);
     const now = new Date();
-    const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-    const remaining = 30 - diffDays;
-    return remaining > 0 ? remaining : 0;
+
+    const subEnd = localStorage.getItem('subscriptionEndDate');
+    if (subEnd) {
+        const end = new Date(subEnd);
+        if (!Number.isNaN(end.getTime()) && end > now) {
+            return Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+        }
+    }
+
+    const trialEnd = localStorage.getItem('trialEndDate');
+    if (trialEnd) {
+        const end = new Date(trialEnd);
+        if (!Number.isNaN(end.getTime()) && end > now) {
+            return Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+        }
+        return 0;
+    }
+
+    return 0;
 }
 
 async function generateCode(days, phone = document.getElementById('admin-phone')?.value) {
@@ -1461,12 +1444,20 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
     window.setTimeout(hideSplash, 5000);
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => { reminderServiceWorkerRegistration = registration; })
-            .catch(error => console.error('تعذر تسجيل Service Worker:', error));
-        navigator.serviceWorker.register('/firebase-messaging-sw.js')
-            .then(registration => { fcmServiceWorkerRegistration = registration; })
-            .catch(error => console.error('تعذر تسجيل Firebase Messaging Service Worker:', error));
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(registration => {
+                reminderServiceWorkerRegistration = registration;
+                fcmServiceWorkerRegistration = registration;
+                console.log('✅ SW registered:', registration.scope);
+            })
+            .catch(error => console.error('فشل تسجيل SW:', error));
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+        });
     }
     window.addEventListener('offline', () => {
         showOfflineBanner();
@@ -1674,7 +1665,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     document.getElementById('chat-input')?.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') handleSendMessage();
     });
-    document.getElementById('workout-search')?.addEventListener('input', renderWorkoutsList);
+    document.getElementById('workout-search')?.addEventListener(
+        'input',
+        debounce(renderWorkoutsList, 200)
+    );
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') closeExerciseGifModal();
     });
@@ -1755,7 +1749,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
                 phoneAuthError('تم تفعيل الاشتراك بنجاح');
                 setPhoneAuthVisible(false);
-                updateSubscriptionUI();
+                await updateSubscriptionUI();
             } catch (error) { phoneAuthError(error.message || 'تعذر تفعيل الكود'); }
         }
         async function checkSubscriptionFromServer() {
@@ -1764,32 +1758,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 if (!response.ok) return;
                 const result = await response.json();
                 if (result.trialEndDate) localStorage.setItem('trialEndDate', result.trialEndDate);
+                else localStorage.removeItem('trialEndDate');
                 if (result.subscriptionEndDate) localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
+                else localStorage.removeItem('subscriptionEndDate');
                 window.ngymSubscription = result;
-                window.currentSubscription = result;
-                updateSubscriptionStatus();
                 await updateSubscriptionUI();
-                const locked = document.getElementById('coach-locked');
-                const chatControls = document.querySelector('#sec-coach > .bg-slate-900');
-                if (locked) locked.classList.toggle('hidden', result.isCoachActive !== false);
-                if (chatControls) chatControls.classList.toggle('hidden', result.isCoachActive === false);
             } catch (error) { console.warn('تعذر تحديث حالة الاشتراك:', error); }
         }
-        function updateSubscriptionStatus() {
-            const state = window.currentSubscription;
-            if (!state) return;
-            const days = Number(state.daysRemaining || 0);
-            const daysElement = document.getElementById('days-remaining');
-            const typeElement = document.getElementById('subscription-type');
-            if (state.isCoachActive) {
-                if (daysElement) daysElement.textContent = `${days} يوم متبقي`;
-                if (typeElement) typeElement.textContent = state.subscriptionEndDate ? 'اشتراك نشط' : 'تجربة مجانية';
-            } else {
-                if (daysElement) daysElement.textContent = 'انتهت التجربة';
-                if (typeElement) typeElement.textContent = 'تواصل معنا للتفعيل';
-            }
-        }
-        window.updateSubscriptionStatus = updateSubscriptionStatus;
         window.validatePhone = validatePhone;
         window.normalizePhone = normalizePhone;
         window.handlePhoneSubmit = handlePhoneSubmit;
@@ -1803,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             document.getElementById('coach-whatsapp-btn')?.addEventListener('click', () => {
                 const phone = localStorage.getItem('ngym_phone') || '';
                 const message = encodeURIComponent('مرحباً، أريد تفعيل NGym لرقمي ' + phone);
-                window.open(`https://wa.me/97256969311?text=${message}`, '_blank');
+                window.open(`https://wa.me/972569699311?text=${message}`, '_blank');
             });
             const authApi = window.NGYM_MODULAR_AUTH;
             if (!authApi) return;
@@ -1866,4 +1841,12 @@ function getMuscleArabic(muscle) {
             neck: 'رقبة'
         };
         return map[(muscle || '').toLowerCase()] || muscle;
+}
+
+function debounce(fn, delay = 200) {
+    let timer;
+    return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
 }
