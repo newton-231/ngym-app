@@ -726,9 +726,12 @@ function renderWorkoutsList() {
             abs: ['abdominals'],
             shoulders: ['shoulders', 'traps']
         };
-        filtered = filtered.filter(ex =>
-            (ex.primaryMuscles || []).some(muscle => muscleAliases[currentFilter].includes(muscle.toLowerCase()))
-        );
+        filtered = filtered.filter(ex => {
+            const primary = (ex.primaryMuscles && ex.primaryMuscles.length > 0)
+                ? ex.primaryMuscles[0].toLowerCase()
+                : '';
+            return muscleAliases[currentFilter].includes(primary);
+        });
     }
     filtered = [...filtered].sort((left, right) =>
         Number(exerciseHasImage(right)) - Number(exerciseHasImage(left))
