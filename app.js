@@ -89,7 +89,7 @@ try {
 
 function logEvent(name, params = {}) {
     try {
-        if (analyticsInstance) analyticsInstance.logEvent(name, params);
+        if (analyticsInstance) firebase.analytics().logEvent(name, params);
     } catch (error) {
         console.warn(`تعذر تسجيل حدث Analytics: ${name}`, error);
     }
@@ -1471,6 +1471,7 @@ async function loadAppMetadata() {
 // ---- Initialization ----
 document.addEventListener('DOMContentLoaded', async function () {
     console.log('✅ DOM loaded');
+    logEvent('app_opened', { timestamp: new Date().toISOString() });
     const tasks = [
         { name: 'recordAppOpen', fn: recordAppOpen },
         { name: 'loadAppMetadata', fn: loadAppMetadata },
