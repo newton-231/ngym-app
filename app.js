@@ -345,6 +345,24 @@ function saveUserData(data) {
         localStorage.setItem('hasOnboarded', 'true');
         writeStorage('userData', { ...getUserData(), ...data });
         updateDashboardUI();
+        const uid = localStorage.getItem('ngym_user_id')
+            || window.NGYM_MODULAR_AUTH?.auth?.currentUser?.uid;
+        if (uid && typeof window.firebase?.firestore === 'function' && dbInstance?.collection) {
+            const userData = getUserData();
+            dbInstance.collection('users').doc(uid).set({
+                weight: userData.weight,
+                targetWeight: userData.targetWeight,
+                height: userData.height,
+                age: userData.age,
+                gender: userData.gender,
+                activity: userData.activity,
+                goal: userData.goal,
+                hasOnboarded: true,
+                updatedAt: new Date().toISOString()
+            }, { merge: true }).catch(error => {
+                console.warn('تعذر حفظ بيانات المستخدم في Firestore:', error);
+            });
+        }
     } catch (e) { console.warn("Storage restricted", e); }
 }
 
@@ -1371,6 +1389,8 @@ function handleOnboardingSubmit(e) {
         apiKey: document.getElementById('input-api-key').value
     });
     logEvent('onboarding_completed', { step: 2 });
+    switchTab('sec-dashboard');
+    updateDashboardUI();
     closeModal('onboarding-modal');
 }
 
@@ -1769,6 +1789,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                     localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
                 }
                 setPhoneAuthVisible(false);
+                if (localStorage.getItem('hasOnboarded') !== 'true') openModal('onboarding-modal');
                 await checkSubscriptionFromServer();
             } catch (error) { phoneAuthError(error.message || 'تعذر تسجيل الرقم حالياً'); }
         }
@@ -1828,6 +1849,9 @@ document.addEventListener('DOMContentLoaded', async function () {
                 splashAuthReady = true;
                 if (!user) { try { await authApi.ensureAnonymousAuth(); } catch (_) {} return; }
                 setPhoneAuthVisible(!localStorage.getItem('ngym_phone'));
+                if (localStorage.getItem('ngym_phone') && localStorage.getItem('hasOnboarded') !== 'true') {
+                    openModal('onboarding-modal');
+                }
                 await checkSubscriptionFromServer();
                 tryHideSplash();
             });
