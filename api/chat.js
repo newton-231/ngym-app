@@ -35,6 +35,23 @@ const MUSCLE_KEYWORDS = {
     traps: ['trap', 'ترابيس', 'shrug', 'رفع أكتاف']
 };
 
+function getExercisePrimaryMuscle(exercise) {
+    const muscle = exercise?.target
+        ? String(exercise.target).toLowerCase()
+        : String(exercise?.primaryMuscles?.[0] || '').toLowerCase();
+
+    if (!muscle) return '';
+    if (muscle.includes('pectoral') || muscle === 'chest') return 'chest';
+    if (muscle.includes('lat') || muscle.includes('back') || muscle.includes('trap')) return 'back';
+    if (muscle.includes('delt') || muscle.includes('shoulder')) return 'shoulders';
+    if (muscle.includes('bicep') || muscle.includes('tricep') || muscle.includes('forearm') || muscle === 'arms') return 'arms';
+    if (muscle.includes('quad') || muscle.includes('adductor') || muscle === 'legs_front') return 'legs_front';
+    if (muscle.includes('hamstring') || muscle.includes('glute') || muscle.includes('abductor') || muscle === 'legs_back') return 'legs_back';
+    if (muscle.includes('calf') || muscle.includes('calves')) return 'calves';
+    if (muscle.includes('ab') || muscle.includes('waist')) return 'abs';
+    return muscle;
+}
+
 const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
 const WINDOW_MS = 60 * 60 * 1000;
@@ -66,18 +83,18 @@ function getRelevantExercises(userMessage, maxCount = 25) {
 
     if (matchedMuscles.size > 0) {
         const muscleMap = {
-            chest: ['chest', 'pectorals'],
-            back: ['lats', 'middle back', 'lower back'],
+            chest: ['chest'],
+            back: ['back'],
             shoulders: ['shoulders'],
-            biceps: ['biceps'],
-            triceps: ['triceps'],
-            legs_front: ['quadriceps', 'adductors'],
-            legs_back: ['hamstrings', 'glutes', 'abductors'],
-            legs: ['quadriceps', 'adductors', 'hamstrings', 'glutes', 'abductors', 'calves'],
+            biceps: ['arms'],
+            triceps: ['arms'],
+            legs_front: ['legs_front'],
+            legs_back: ['legs_back'],
+            legs: ['legs_front', 'legs_back', 'calves'],
             calves: ['calves'],
-            abs: ['abdominals'],
-            forearms: ['forearms'],
-            traps: ['traps']
+            abs: ['abs'],
+            forearms: ['arms'],
+            traps: ['back']
         };
 
         const targetMuscles = [];
@@ -86,9 +103,7 @@ function getRelevantExercises(userMessage, maxCount = 25) {
         }
 
         filtered = all.filter(exercise =>
-            (exercise.primaryMuscles || []).some(primary =>
-                targetMuscles.includes(primary.toLowerCase())
-            )
+            targetMuscles.includes(getExercisePrimaryMuscle(exercise))
         );
     }
 

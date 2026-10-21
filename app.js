@@ -691,6 +691,26 @@ async function loadExerciseDatabase() {
     tryHideSplash();
 }
 
+function getExercisePrimaryMuscle(ex) {
+    if (ex.target) {
+        const target = String(ex.target).toLowerCase();
+        if (target.includes('pectoral')) return 'chest';
+        if (target.includes('lat') || target.includes('back')) return 'back';
+        if (target.includes('delt') || target.includes('shoulder')) return 'shoulders';
+        if (target.includes('bicep')) return 'biceps';
+        if (target.includes('tricep')) return 'triceps';
+        if (target.includes('quad')) return 'legs_front';
+        if (target.includes('hamstring') || target.includes('glute')) return 'legs_back';
+        if (target.includes('calf')) return 'calves';
+        if (target.includes('ab') || target.includes('waist')) return 'abs';
+        return target;
+    }
+
+    return (ex.primaryMuscles && ex.primaryMuscles[0])
+        ? ex.primaryMuscles[0].toLowerCase()
+        : '';
+}
+
 function renderWorkoutsList() {
     const container = document.getElementById('workouts-list');
     if (!container) return;
@@ -718,20 +738,17 @@ function renderWorkoutsList() {
     } else if (['chest', 'back', 'legs_front', 'legs_back', 'legs_calves', 'arms', 'abs', 'shoulders'].includes(currentFilter)) {
         const muscleAliases = {
             chest: ['chest', 'pectorals'],
-            back: ['lats', 'middle back', 'lower back', 'traps'],
-            legs_front: ['quadriceps', 'adductors'],
-            legs_back: ['hamstrings', 'glutes', 'abductors'],
+            back: ['back', 'lats', 'middle back', 'lower back', 'traps'],
+            legs_front: ['legs_front', 'quadriceps', 'adductors'],
+            legs_back: ['legs_back', 'hamstrings', 'glutes', 'abductors'],
             legs_calves: ['calves'],
             arms: ['biceps', 'triceps', 'forearms'],
-            abs: ['abdominals'],
+            abs: ['abs', 'abdominals'],
             shoulders: ['shoulders', 'traps']
         };
-        filtered = filtered.filter(ex => {
-            const primary = (ex.primaryMuscles && ex.primaryMuscles.length > 0)
-                ? ex.primaryMuscles[0].toLowerCase()
-                : '';
-            return muscleAliases[currentFilter].includes(primary);
-        });
+        filtered = filtered.filter(ex =>
+            muscleAliases[currentFilter].includes(getExercisePrimaryMuscle(ex))
+        );
     }
     filtered = [...filtered].sort((left, right) =>
         Number(exerciseHasImage(right)) - Number(exerciseHasImage(left))
