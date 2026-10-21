@@ -16,8 +16,11 @@ const FALLBACK_WORKOUTS = [
 
 // Exercises excluded from the no-equipment filter because their names imply equipment.
 const HOME_BLACKLIST = [
-    'decline', 'bench', 'chin-up', 'pull-up', 'dip',
-    'hyperextension', 'cable', 'machine', 'lever'
+    'decline', 'bench', 'chin-up', 'pull-up', 'dip', 'hyperextension',
+    'cable', 'machine', 'lever', 'dumbbell', 'barbell', 'kettlebell',
+    'band', 'medicine', 'stability', 'foam', 'roller', 'wheel',
+    'suspension', 'trx', 'ring', 'rope', 'towel', 'partner', 'assisted',
+    'pulley', 'smith', 'sled', 'plate', 'box', 'step', 'chair', 'bar', 'row'
 ];
 
 // Map an exercise with an incorrect image to the ID of an exercise with the correct image.
@@ -753,20 +756,24 @@ function renderWorkoutsList() {
         filtered = filtered.filter(ex => (ex.equipment || '').toLowerCase() === 'dumbbell');
     } else if (currentFilter === 'gym') {
         filtered = filtered.filter(ex => !['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
+    } else if (currentFilter === 'cardio') {
+        filtered = filtered.filter(ex => String(ex.category || '').toLowerCase() === 'cardio');
     } else if (['chest', 'back', 'legs_front', 'legs_back', 'legs_calves', 'arms', 'abs', 'shoulders'].includes(currentFilter)) {
         const muscleAliases = {
             chest: ['chest', 'pectorals'],
-            back: ['back', 'lats', 'middle back', 'lower back', 'traps'],
+            back: ['back', 'lats', 'middle back', 'lower back'],
             legs_front: ['legs_front', 'quadriceps', 'adductors'],
             legs_back: ['legs_back', 'hamstrings', 'glutes', 'abductors'],
             legs_calves: ['calves'],
             arms: ['biceps', 'triceps', 'forearms'],
             abs: ['abs', 'abdominals'],
-            shoulders: ['shoulders', 'traps']
+            shoulders: ['shoulders', 'traps', 'neck']
         };
-        filtered = filtered.filter(ex =>
-            muscleAliases[currentFilter].includes(getExercisePrimaryMuscle(ex))
-        );
+        filtered = filtered.filter(ex => {
+            const cat = String(ex.category || '').toLowerCase();
+            if (cat === 'stretching' || cat === 'cardio') return false;
+            return muscleAliases[currentFilter].includes(getExercisePrimaryMuscle(ex));
+        });
     }
     filtered = [...filtered].sort((left, right) =>
         Number(exerciseHasImage(right)) - Number(exerciseHasImage(left))
