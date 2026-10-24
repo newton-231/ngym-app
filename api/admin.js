@@ -1,8 +1,13 @@
 const crypto = require('crypto');
 
 function normalizePhone(value) {
-    const raw = String(value || '').replace(/[^\d+]/g, '');
-    const normalized = raw.startsWith('+') ? `+${raw.slice(1).replace(/\D/g, '')}` : `+${raw.replace(/\D/g, '')}`;
+    const input = String(value || '').trim();
+    const digits = input.replace(/\D/g, '');
+    const normalized = input.startsWith('+')
+        ? `+${digits}`
+        : digits.startsWith('00')
+            ? `+${digits.slice(2)}`
+            : `+${digits.replace(/^0/, '')}`;
     return /^\+[1-9]\d{7,14}$/.test(normalized) ? normalized : null;
 }
 const admin = require('firebase-admin');

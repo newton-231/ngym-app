@@ -11,8 +11,13 @@ function db() {
     return admin.firestore();
 }
 function normalizePhone(value) {
-    const valueString = String(value || '').replace(/[^\d+]/g, '');
-    const normalized = valueString.startsWith('+') ? `+${valueString.slice(1).replace(/\D/g, '')}` : `+${valueString.replace(/\D/g, '')}`;
+    const input = String(value || '').trim();
+    const digits = input.replace(/\D/g, '');
+    const normalized = input.startsWith('+')
+        ? `+${digits}`
+        : digits.startsWith('00')
+            ? `+${digits.slice(2)}`
+            : `+${digits.replace(/^0/, '')}`;
     return /^\+[1-9]\d{7,14}$/.test(normalized) ? normalized : null;
 }
 async function uid(req, res) {

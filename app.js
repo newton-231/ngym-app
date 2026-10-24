@@ -1749,8 +1749,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 // Phone registration migration. The Google flow above is retained as // DEPRECATED
         // compatibility code, but anonymous Firebase identities are now used for all users.
         function normalizePhone(value) {
-            const raw = String(value || '').replace(/[^\d+]/g, '');
-            return raw.startsWith('+') ? `+${raw.slice(1).replace(/\D/g, '')}` : `+${raw.replace(/\D/g, '')}`;
+            const input = String(value || '').trim();
+            const digits = input.replace(/\D/g, '');
+            if (input.startsWith('+')) return `+${digits}`;
+            if (digits.startsWith('00')) return `+${digits.slice(2)}`;
+            return `+${digits.replace(/^0/, '')}`;
         }
         function validatePhone(value) { return /^\+[1-9]\d{7,14}$/.test(normalizePhone(value)); }
         function phoneAuthError(message) {
