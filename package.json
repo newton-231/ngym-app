@@ -3,6 +3,9 @@
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "build:data": "node scripts/build-exercises.js scripts/source/exercises_72828a.json"
+  },
   "dependencies": {
     "firebase-admin": "^13.5.0"
   }

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 let fullExercises = null;
-function loadExercises() {
+function loadExerciseCatalog() {
     if (fullExercises) return fullExercises;
     try {
         fullExercises = JSON.parse(
@@ -18,6 +18,29 @@ function loadExercises() {
         console.error('فشل تحميل exercises.json:', e);
         return [];
     }
+}
+
+function getExerciseGroup(exercise) {
+    if (exercise?.group) return String(exercise.group).toLowerCase();
+    const muscle = String(exercise?.target || exercise?.primaryMuscles?.[0] || '').toLowerCase();
+    if (muscle.includes('pectoral') || muscle === 'chest' || muscle === 'serratus anterior') return 'chest';
+    if (muscle.includes('lat') || muscle.includes('back') || muscle.includes('trap') || muscle === 'spine') return 'back';
+    if (muscle.includes('delt') || muscle.includes('shoulder') || muscle === 'levator scapulae') return 'shoulders';
+    if (['biceps', 'triceps', 'forearms'].includes(muscle)) return 'arms';
+    if (muscle === 'abs' || muscle === 'abdominals' || muscle.includes('waist')) return 'abs';
+    if (['quads', 'quadriceps', 'adductors'].includes(muscle)) return 'legs_front';
+    if (['hamstrings', 'glutes', 'abductors'].includes(muscle)) return 'legs_back';
+    if (['calves', 'calf'].includes(muscle)) return 'legs_calves';
+    if (muscle === 'cardiovascular system') return 'cardio';
+    return '';
+}
+
+function getExercisePlace(exercise) {
+    if (exercise?.place) return String(exercise.place).toLowerCase();
+    const equipment = String(exercise?.equipment || '').toLowerCase();
+    if (equipment === 'body weight' || equipment === 'body only') return 'home_no_equip';
+    if (equipment === 'dumbbell') return 'home_dumbbell';
+    return 'gym';
 }
 
 const MUSCLE_KEYWORDS = {
@@ -32,25 +55,10 @@ const MUSCLE_KEYWORDS = {
     calves: ['calf', 'سمانة', 'calves'],
     abs: ['ab', 'abs', 'بطن', 'crunch', 'بلانك', 'plank', 'سيت أب'],
     forearms: ['forearm', 'ساعد', 'wrist'],
-    traps: ['trap', 'ترابيس', 'shrug', 'رفع أكتاف']
+    traps: ['trap', 'ترابيس', 'shrug', 'رفع أكتاف'],
+    arms: ['arms', 'ذراع', 'ذراعين'],
+    cardio: ['cardio', 'cardiovascular', 'كارديو', 'قلب']
 };
-
-function getExercisePrimaryMuscle(exercise) {
-    const muscle = exercise?.target
-        ? String(exercise.target).toLowerCase()
-        : String(exercise?.primaryMuscles?.[0] || '').toLowerCase();
-
-    if (!muscle) return '';
-    if (muscle.includes('pectoral') || muscle === 'chest') return 'chest';
-    if (muscle.includes('lat') || muscle.includes('back') || muscle.includes('trap')) return 'back';
-    if (muscle.includes('delt') || muscle.includes('shoulder')) return 'shoulders';
-    if (muscle.includes('bicep') || muscle.includes('tricep') || muscle.includes('forearm') || muscle === 'arms') return 'arms';
-    if (muscle.includes('quad') || muscle.includes('adductor') || muscle === 'legs_front') return 'legs_front';
-    if (muscle.includes('hamstring') || muscle.includes('glute') || muscle.includes('abductor') || muscle === 'legs_back') return 'legs_back';
-    if (muscle.includes('calf') || muscle.includes('calves')) return 'calves';
-    if (muscle.includes('ab') || muscle.includes('waist')) return 'abs';
-    return muscle;
-}
 
 const rateLimitMap = new Map();
 const RATE_LIMIT = 20;
@@ -67,7 +75,7 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 function getRelevantExercises(userMessage, maxCount = 25) {
-    const all = loadExercises();
+    const all = loadExerciseCatalog();
     if (!all.length) return [];
 
     const msg = String(userMessage || '').toLowerCase();
@@ -86,15 +94,17 @@ function getRelevantExercises(userMessage, maxCount = 25) {
             chest: ['chest'],
             back: ['back'],
             shoulders: ['shoulders'],
+            arms: ['arms'],
             biceps: ['arms'],
             triceps: ['arms'],
             legs_front: ['legs_front'],
             legs_back: ['legs_back'],
-            legs: ['legs_front', 'legs_back', 'calves'],
-            calves: ['calves'],
+            legs: ['legs_front', 'legs_back', 'legs_calves'],
+            calves: ['legs_calves'],
             abs: ['abs'],
             forearms: ['arms'],
-            traps: ['back']
+            traps: ['back'],
+            cardio: ['cardio']
         };
 
         const targetMuscles = [];
@@ -102,40 +112,24 @@ function getRelevantExercises(userMessage, maxCount = 25) {
             targetMuscles.push(...(muscleMap[muscle] || []));
         }
 
-        filtered = all.filter(exercise =>
-            targetMuscles.includes(getExercisePrimaryMuscle(exercise))
-        );
+        filtered = all.filter(exercise => targetMuscles.includes(getExerciseGroup(exercise)));
     }
 
-    if (msg.includes('منزل') || msg.includes('home') || msg.includes('بدون أدوات')) {
-        filtered = filtered.filter(exercise =>
-            (exercise.equipment || '').toLowerCase() === 'body only'
-        );
-    } else if (msg.includes('دمبل') || msg.includes('dumbbell')) {
-        filtered = filtered.filter(exercise =>
-            (exercise.equipment || '').toLowerCase() === 'dumbbell'
-        );
+    if (msg.includes('دمبل') || msg.includes('dumbbell')) {
+        filtered = filtered.filter(exercise => getExercisePlace(exercise) === 'home_dumbbell');
+    } else if (msg.includes('منزل') || msg.includes('home') || msg.includes('بدون أدوات')) {
+        filtered = filtered.filter(exercise => getExercisePlace(exercise) === 'home_no_equip');
+    } else if (msg.includes('نادي') || msg.includes('gym')) {
+        filtered = filtered.filter(exercise => getExercisePlace(exercise) === 'gym');
     } else if (msg.includes('بار') || msg.includes('barbell')) {
-        filtered = filtered.filter(exercise =>
-            (exercise.equipment || '').toLowerCase() === 'barbell'
-        );
-    }
-
-    if (filtered.length === 0) {
-        filtered = all.slice(0, maxCount);
+        filtered = filtered.filter(exercise => String(exercise.equipment || '').toLowerCase().includes('barbell'));
     }
 
     return filtered.slice(0, maxCount);
 }
 
 function formatExercisesForPrompt(exercises) {
-    return exercises.map(exercise => {
-        const arName = exercise.name_ar || exercise.arabic_name || '';
-        const enName = exercise.name_en || exercise.name || '';
-        const muscles = (exercise.primaryMuscles || []).join(',');
-        const equipment = exercise.equipment || 'none';
-        return `${exercise.id} | ${arName}${arName && enName ? ' / ' : ''}${enName} | muscles:${muscles} | equipment:${equipment}`;
-    }).join('\n');
+    return exercises.map(exercise => `${exercise.id} | ${exercise.name}`).join('\n');
 }
 
 function buildBaseInstruction(userMessage) {
@@ -155,6 +149,8 @@ ${catalogText}
 
 - اقترح فقط تمارين من القائمة أعلاه.
 - لا تخترع معرّفات.
+- لا تستخدم جداول Markdown أو عناوين تبدأ بعلامة #؛ استخدم فقرات قصيرة وقوائم نقطية بسيطة.
+- أضف وسم [GIF: id] من القائمة في سطر مستقل بعد اسم كل تمرين مقترح مباشرة.
 - إذا لم تفهم السؤال، اطلب توضيحاً.`;
 }
 
