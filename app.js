@@ -9,29 +9,17 @@ const DEFAULT_USER_DATA = {
 };
 
 const FALLBACK_WORKOUTS = [
-    { id: 'pushup', name: 'تمرين الضغط', name_ar: 'تمرين الضغط', category: 'Calisthenics', target_muscle: 'chest', location: 'home', met: 3.8 },
-    { id: 'squat', name: 'Squat', name_ar: 'تمرين القرفصاء', category: 'Calisthenics', target_muscle: 'legs', location: 'home', met: 5 },
-    { id: 'plank', name: 'Plank', name_ar: 'تمرين البلانك', category: 'Calisthenics', target_muscle: 'abs', location: 'home', met: 4 }
+    { id: 'pushup', name: 'Push-Up', group: 'chest', place: 'home_no_equip', target: 'pectorals', equipment: 'body weight', primaryMuscles: ['pectorals'], secondaryMuscles: [], instructions: [] },
+    { id: 'squat', name: 'Squat', group: 'legs_front', place: 'home_no_equip', target: 'quads', equipment: 'body weight', primaryMuscles: ['quads'], secondaryMuscles: [], instructions: [] },
+    { id: 'plank', name: 'Plank', group: 'abs', place: 'home_no_equip', target: 'abs', equipment: 'body weight', primaryMuscles: ['abs'], secondaryMuscles: [], instructions: [] }
 ];
-
-// Exercises excluded from the no-equipment filter because their names imply equipment.
-const HOME_BLACKLIST = [
-    'decline', 'bench', 'chin-up', 'pull-up', 'dip', 'hyperextension',
-    'cable', 'machine', 'lever', 'dumbbell', 'barbell', 'kettlebell',
-    'band', 'medicine', 'stability', 'foam', 'roller', 'wheel',
-    'suspension', 'trx', 'ring', 'rope', 'towel', 'partner', 'assisted',
-    'pulley', 'smith', 'sled', 'plate', 'box', 'step', 'chair', 'bar', 'row'
-];
-
-// Map an exercise with an incorrect image to the ID of an exercise with the correct image.
-const IMAGE_OVERRIDES = {
-    // 'bad_exercise_id': 'good_exercise_id'
-};
 
 let exerciseDatabase = [];
 let exerciseGifManifest = {};
 let selectedBase64Image = null;
 let currentFilter = 'all';
+let workoutVisibleCount = 40;
+let previousWorkoutSearch = '';
 let currentTab = 'sec-dashboard';
 let currentExercise = null;
 let currentGifExercise = null;
@@ -593,37 +581,10 @@ function highlightMuscles() {
 
 // ---- Workouts ----
 
-function getDirectExerciseImage(ex) {
-    const imagePath = typeof ex?.gif === 'string' && ex.gif.trim()
-        ? ex.gif.trim()
-        : typeof ex?.image === 'string' && ex.image.trim()
-            ? ex.image.trim()
-            : '';
-    if (!imagePath) return '';
-    if (imagePath.startsWith('data:') || imagePath.startsWith('http') || imagePath.startsWith('/')) {
-        return imagePath;
-    }
-    return `/${imagePath.replace(/^\.?\//, '')}`;
-}
-
 function getExerciseGifUrl(ex) {
     if (!ex) return EXERCISE_IMAGE_PLACEHOLDER;
-    const overrideId = IMAGE_OVERRIDES[ex.id];
-    if (overrideId && exerciseGifManifest[overrideId]) {
-        return `/assets/gifs/${exerciseGifManifest[overrideId]}`;
-    }
-    const directImage = getDirectExerciseImage(ex);
-    if (directImage) return directImage;
     const gifPath = ex.id ? exerciseGifManifest[ex.id] : '';
-    if (gifPath) return `/assets/gifs/${gifPath}`;
-    return EXERCISE_IMAGE_PLACEHOLDER;
-}
-
-function exerciseHasImage(ex) {
-    const directImage = getDirectExerciseImage(ex);
-    const isPlaceholder = directImage === EXERCISE_IMAGE_PLACEHOLDER || /(?:default|placeholder)\.(?:gif|png|jpg|jpeg|webp)$/i.test(directImage);
-    const gifId = IMAGE_OVERRIDES[ex?.id] || ex?.id;
-    return Boolean((gifId && exerciseGifManifest[gifId]) || (!isPlaceholder && directImage));
+    return gifPath ? `/assets/gifs/${gifPath}` : EXERCISE_IMAGE_PLACEHOLDER;
 }
 
 function escapeHtml(value) {
@@ -633,7 +594,7 @@ function escapeHtml(value) {
 }
 
 function getExerciseArabicName(ex) {
-    return ex.name_ar || ex.arabic_name || `تمرين ${ex.name || ex.id || ''}`.trim();
+    return ex.name_ar || ex.arabic_name || '';
 }
 
 function getExerciseEnglishName(ex) {
@@ -659,9 +620,12 @@ function openExerciseGifModal(exerciseId) {
 
     image.onerror = () => handleGifError(image);
     image.src = getExerciseGifUrl(currentGifExercise);
-    image.alt = getExerciseArabicName(exercise);
-    arabicName.textContent = getExerciseArabicName(exercise);
-    englishName.textContent = getExerciseEnglishName(exercise);
+    const arabicExerciseName = getExerciseArabicName(exercise);
+    const englishExerciseName = getExerciseEnglishName(exercise);
+    image.alt = arabicExerciseName || englishExerciseName;
+    arabicName.textContent = arabicExerciseName || englishExerciseName;
+    englishName.textContent = arabicExerciseName && englishExerciseName !== arabicExerciseName ? englishExerciseName : '';
+    englishName.hidden = !englishName.textContent;
     modal.classList.remove('hidden');
 }
 
@@ -675,6 +639,7 @@ function closeExerciseGifModal() {
 
 function filterWorkouts(filter) {
     currentFilter = filter;
+    workoutVisibleCount = 40;
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('bg-emerald-500', 'text-slate-950', 'active-filter');
         btn.classList.add('bg-slate-800', 'text-slate-300');
@@ -688,13 +653,28 @@ function filterWorkouts(filter) {
 }
 
 async function loadExerciseDatabase() {
+    let catalogLoaded = false;
     try {
         const response = await fetch('/data/exercises.json');
         if (!response.ok) throw new Error('فشل تحميل التمارين');
-        exerciseDatabase = await response.json();
+        const exercises = await response.json();
+        if (!Array.isArray(exercises)) throw new Error('صيغة بيانات التمارين غير صالحة');
+        exerciseDatabase = exercises;
+        catalogLoaded = true;
     } catch (error) {
         exerciseDatabase = FALLBACK_WORKOUTS;
         showToast('تعذر تحميل بيانات التمارين، تم تشغيل الوضع البديل.', 'warning');
+    }
+
+    if (catalogLoaded) {
+        const validExerciseIds = new Set(exerciseDatabase.map(exercise => exercise.id));
+        const favorites = readJsonStorage('favorites', []);
+        const validFavorites = Array.isArray(favorites)
+            ? favorites.filter(id => validExerciseIds.has(id))
+            : [];
+        if (!Array.isArray(favorites) || validFavorites.length !== favorites.length) {
+            writeStorage('favorites', validFavorites);
+        }
     }
 
     try {
@@ -712,118 +692,102 @@ async function loadExerciseDatabase() {
     tryHideSplash();
 }
 
-function getExercisePrimaryMuscle(ex) {
-    if (ex.target) {
-        const target = String(ex.target).toLowerCase();
-        if (target.includes('pectoral')) return 'chest';
-        if (target.includes('lat') || target.includes('back')) return 'back';
-        if (target.includes('delt') || target.includes('shoulder')) return 'shoulders';
-        if (target.includes('bicep')) return 'biceps';
-        if (target.includes('tricep')) return 'triceps';
-        if (target.includes('quad')) return 'legs_front';
-        if (target.includes('hamstring') || target.includes('glute')) return 'legs_back';
-        if (target.includes('calf')) return 'calves';
-        if (target.includes('ab') || target.includes('waist')) return 'abs';
-        return target;
-    }
-
-    return (ex.primaryMuscles && ex.primaryMuscles[0])
-        ? ex.primaryMuscles[0].toLowerCase()
-        : '';
-}
-
 function renderWorkoutsList() {
     const container = document.getElementById('workouts-list');
     if (!container) return;
-    let filtered = exerciseDatabase;
+
     const searchTerm = (document.getElementById('workout-search')?.value || '').trim().toLocaleLowerCase();
+    if (searchTerm !== previousWorkoutSearch) {
+        previousWorkoutSearch = searchTerm;
+        workoutVisibleCount = 40;
+    }
+
+    let filtered = exerciseDatabase;
     if (searchTerm) {
-        filtered = filtered.filter(ex => [
-            ex.id, ex.name, ex.name_en, ex.name_ar, ex.arabic_name,
-            ...(ex.primaryMuscles || [])
-        ].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(searchTerm)));
+        filtered = filtered.filter(exercise => [
+            exercise.id,
+            exercise.name,
+            exercise.target,
+            exercise.equipment,
+            getMuscleArabic(exercise.target),
+            getEquipmentArabic(exercise.equipment)
+        ].some(value => String(value || '').toLocaleLowerCase().includes(searchTerm)));
     }
+
     if (currentFilter === 'favorites') {
-        const favs = readJsonStorage('favorites', []);
-        filtered = filtered.filter(ex => favs.includes(ex.id));
-    } else if (currentFilter === 'home_no_equip') {
-        filtered = filtered.filter(ex => {
-            const nameLower = (ex.name || '').toLowerCase();
-            const isBlacklisted = HOME_BLACKLIST.some(word => nameLower.includes(word));
-            return (ex.equipment || '').toLowerCase() === 'body only' && !isBlacklisted;
-        });
-    } else if (currentFilter === 'home_dumbbell') {
-        filtered = filtered.filter(ex => (ex.equipment || '').toLowerCase() === 'dumbbell');
-    } else if (currentFilter === 'gym') {
-        filtered = filtered.filter(ex => !['body only', 'dumbbell'].includes((ex.equipment || '').toLowerCase()));
-    } else if (currentFilter === 'cardio') {
-        filtered = filtered.filter(ex => String(ex.category || '').toLowerCase() === 'cardio');
-    } else if (['chest', 'back', 'legs_front', 'legs_back', 'legs_calves', 'arms', 'abs', 'shoulders'].includes(currentFilter)) {
-        const muscleAliases = {
-            chest: ['chest', 'pectorals'],
-            back: ['back', 'lats', 'middle back', 'lower back'],
-            legs_front: ['legs_front', 'quadriceps', 'adductors'],
-            legs_back: ['legs_back', 'hamstrings', 'glutes', 'abductors'],
-            legs_calves: ['calves'],
-            arms: ['biceps', 'triceps', 'forearms'],
-            abs: ['abs', 'abdominals'],
-            shoulders: ['shoulders', 'traps', 'neck']
-        };
-        filtered = filtered.filter(ex => {
-            const cat = String(ex.category || '').toLowerCase();
-            if (cat === 'stretching' || cat === 'cardio') return false;
-            return muscleAliases[currentFilter].includes(getExercisePrimaryMuscle(ex));
-        });
+        const storedFavorites = readJsonStorage('favorites', []);
+        const favs = Array.isArray(storedFavorites) ? storedFavorites : [];
+        filtered = filtered.filter(exercise => favs.includes(exercise.id));
+    } else if (['home_no_equip', 'home_dumbbell', 'gym'].includes(currentFilter)) {
+        filtered = filtered.filter(exercise => exercise.place === currentFilter);
+    } else if (['chest', 'back', 'shoulders', 'arms', 'abs', 'legs_front', 'legs_back', 'legs_calves', 'cardio'].includes(currentFilter)) {
+        filtered = filtered.filter(exercise => exercise.group === currentFilter);
     }
-    filtered = [...filtered].sort((left, right) =>
-        Number(exerciseHasImage(right)) - Number(exerciseHasImage(left))
-    );
+
     if (filtered.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-8">لا توجد تمارين مطابقة</div>';
         return;
     }
-    container.innerHTML = filtered.map(ex => {
-        const isFav = readJsonStorage('favorites', []).includes(ex.id);
-        const arabicName = getExerciseArabicName(ex);
-        const englishName = getExerciseEnglishName(ex);
-        const muscles = (ex.primaryMuscles || []).join(', ');
-        const imgUrl = getExerciseGifUrl(ex);
-        const equipmentAr = getEquipmentArabic(ex.equipment);
-        const levelAr = getLevelArabic(ex.level);
-        const levelClass = (ex.level || '').toLowerCase();
+
+    const visibleExercises = filtered.slice(0, workoutVisibleCount);
+    const storedFavorites = readJsonStorage('favorites', []);
+    const favs = Array.isArray(storedFavorites) ? storedFavorites : [];
+    const exerciseCards = visibleExercises.map(exercise => {
+        const isFav = favs.includes(exercise.id);
+        const arabicName = getExerciseArabicName(exercise);
+        const englishName = getExerciseEnglishName(exercise);
+        const displayName = arabicName || englishName;
+        const muscles = exercise.target || (exercise.primaryMuscles || []).join(', ');
+        const musclesLabel = exercise.target
+            ? getMuscleArabic(exercise.target)
+            : (exercise.primaryMuscles || []).map(getMuscleArabic).join(', ');
+        const imgUrl = getExerciseGifUrl(exercise);
+        const equipmentAr = getEquipmentArabic(exercise.equipment);
+        const subtitle = arabicName && englishName !== arabicName
+            ? `<p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(englishName)}</p>`
+            : '';
         const badgesHtml = `
             <div class="exercise-badges">
                 ${equipmentAr ? `<span class="badge badge-equipment">${equipmentAr}</span>` : ''}
-                ${levelAr && ['beginner', 'intermediate', 'expert'].includes(levelClass)
-                    ? `<span class="badge badge-level-${levelClass}">${levelAr}</span>`
-                    : ''}
             </div>
         `;
         return `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm">
-            <button type="button" onclick="openExerciseGifModal('${escapeHtml(ex.id)}')" aria-label="تكبير صورة ${escapeHtml(arabicName)}" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0 cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                <img src="${imgUrl}" alt="${escapeHtml(arabicName)}" class="w-full h-full object-cover" onerror="handleGifError(this)">
+            <button type="button" onclick="openExerciseGifModal('${escapeHtml(exercise.id)}')" aria-label="تكبير صورة ${escapeHtml(displayName)}" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 flex-shrink-0 cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <img src="${imgUrl}" alt="${escapeHtml(displayName)}" class="w-full h-full object-cover" loading="lazy" decoding="async" onerror="handleGifError(this)">
             </button>
             <div class="flex-1 min-w-0">
-                <h4 dir="rtl" class="text-sm font-bold text-slate-200 truncate">${escapeHtml(arabicName)}</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(englishName)}</p>
-                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(muscles)}</p>
+                <h4 dir="rtl" class="text-sm font-bold text-slate-200 truncate">${escapeHtml(displayName)}</h4>
+                ${subtitle}
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${escapeHtml(musclesLabel)}</p>
                 ${badgesHtml}
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
-                <button onclick="toggleFavorite('${ex.id}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} text-sm p-1">
+                <button onclick="toggleFavorite('${escapeHtml(exercise.id)}')" class="text-${isFav ? 'yellow-400' : 'slate-500'} text-sm p-1">
                     <i class="fa-solid fa-star"></i>
                 </button>
-                <button onclick="openExerciseModal('${escapeHtml(ex.id)}', '${escapeHtml(arabicName)}', '${escapeHtml(muscles)}', 5)" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
+                <button onclick="openExerciseModal('${escapeHtml(exercise.id)}', '${escapeHtml(displayName)}', '${escapeHtml(muscles)}', 5)" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-semibold">
                     تسجيل
                 </button>
             </div>
         </div>
-    `}).join('');
+    `;
+    }).join('');
+
+    const showMoreButton = filtered.length > visibleExercises.length
+        ? '<button type="button" onclick="showMoreWorkouts()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl py-3 text-sm font-semibold">عرض المزيد</button>'
+        : '';
+    container.innerHTML = exerciseCards + showMoreButton;
+}
+
+function showMoreWorkouts() {
+    workoutVisibleCount += 40;
+    renderWorkoutsList();
 }
 
 function toggleFavorite(id) {
     let favs = readJsonStorage('favorites', []);
+    if (!Array.isArray(favs)) favs = [];
     if (favs.includes(id)) favs = favs.filter(f => f !== id);
     else favs.push(id);
     writeStorage('favorites', favs);
@@ -1056,11 +1020,41 @@ function updateChatMessage(id, newText) {
 }
 
 function formatChatText(text) {
-    const escaped = escapeHtml(text).replace(/\r?\n/g, '<br>');
-    return escaped.replace(/\[GIF:\s*([A-Za-z0-9_-]+)\s*\]/g, (match, id) => {
+    const sourceLines = escapeHtml(text).split(/\r?\n/);
+    const formattedLines = [];
+    let listItems = [];
+
+    const flushList = () => {
+        if (!listItems.length) return;
+        formattedLines.push(`<ul class="list-disc list-inside my-2">${listItems.join('')}</ul>`);
+        listItems = [];
+    };
+
+    for (const line of sourceLines) {
+        const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+        if (bullet) {
+            listItems.push(`<li>${bullet[1]}</li>`);
+            continue;
+        }
+
+        flushList();
+        const heading = line.match(/^#{2,3}\s+(.+)$/);
+        if (heading) {
+            const level = line.startsWith('###') ? 3 : 2;
+            formattedLines.push(`<h${level} class="font-bold text-slate-100 my-2">${heading[1]}</h${level}>`);
+        } else if (/^-{3,}$/.test(line.trim())) {
+            formattedLines.push('<hr class="border-slate-700 my-3">');
+        } else {
+            formattedLines.push(line);
+        }
+    }
+    flushList();
+
+    const formatted = formattedLines.join('<br>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return formatted.replace(/\[GIF:\s*([A-Za-z0-9_-]+)\s*\]/g, (match, id) => {
         if (!exerciseGifManifest[id]) return match;
         const gifUrl = getExerciseGifUrl({ id });
-        return `<img src="${gifUrl}" alt="GIF ${escapeHtml(id)}" class="block max-w-full h-auto rounded-lg my-2 border border-slate-700" loading="lazy" onerror="this.remove()">`;
+        return `<img src="${gifUrl}" alt="GIF ${escapeHtml(id)}" class="block max-w-full h-auto rounded-lg my-2 border border-slate-700" loading="lazy" decoding="async" onerror="this.remove()">`;
     });
 }
 
@@ -1866,54 +1860,41 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
 
 function getEquipmentArabic(equipment) {
-        const map = {
-            barbell: 'بار',
-            dumbbell: 'دمبل',
-            'body only': 'بدون أدوات',
-            cable: 'كابل',
-            machine: 'جهاز',
-            kettlebells: 'كيتل بيل',
-            bands: 'مطاط',
-            'medicine ball': 'كرة طبية',
-            'exercise ball': 'كرة سويسرية',
-            'foam roll': 'أسطوانة',
-            'e-z curl bar': 'بار متعرج',
-            other: 'أدوات أخرى'
-        };
-        return map[(equipment || '').toLowerCase()] || null;
-}
-
-function getLevelArabic(level) {
-        const map = {
-            beginner: 'مبتدئ',
-            intermediate: 'متوسط',
-            expert: 'متقدم'
-        };
-        return map[(level || '').toLowerCase()] || null;
+    const map = {
+        'body weight': 'بدون أدوات', dumbbell: 'دمبل', cable: 'كابل', barbell: 'بار',
+        'leverage machine': 'جهاز', band: 'مطاط', 'smith machine': 'جهاز سميث',
+        kettlebell: 'كيتل بيل', weighted: 'بوزن إضافي', 'stability ball': 'كرة سويسرية',
+        'ez barbell': 'بار متعرج', assisted: 'بمساعدة', 'sled machine': 'جهاز سليد',
+        'medicine ball': 'كرة طبية', rope: 'حبل', roller: 'أسطوانة',
+        'resistance band': 'حزام مقاومة', 'bosu ball': 'كرة بوسو', 'olympic barbell': 'بار أولمبي',
+        'wheel roller': 'عجلة بطن', 'upper body ergometer': 'دراجة ذراعين',
+        'skierg machine': 'جهاز سكي', hammer: 'جهاز هامر', 'stationary bike': 'دراجة ثابتة',
+        tire: 'إطار', 'trap bar': 'بار سداسي', 'elliptical machine': 'جهاز إهليلجي',
+        'stepmill machine': 'جهاز سلم'
+    };
+    return map[String(equipment || '').toLowerCase()] || null;
 }
 
 function getMuscleArabic(muscle) {
-        const map = {
-            chest: 'صدر',
-            pectorals: 'صدر',
-            lats: 'ظهر عريض',
-            'middle back': 'ظهر وسط',
-            'lower back': 'أسفل الظهر',
-            traps: 'ترابيس',
-            quadriceps: 'أمام الفخذ',
-            hamstrings: 'خلف الفخذ',
-            glutes: 'مؤخرة',
-            calves: 'سمانة',
-            adductors: 'داخل الفخذ',
-            abductors: 'خارج الفخذ',
-            biceps: 'بايسبس',
-            triceps: 'ترايسبس',
-            forearms: 'ساعد',
-            abdominals: 'بطن',
-            shoulders: 'أكتاف',
-            neck: 'رقبة'
-        };
-        return map[(muscle || '').toLowerCase()] || muscle;
+    const map = {
+        triceps: 'ترايسبس', shoulders: 'أكتاف', biceps: 'بايسبس', hamstrings: 'خلف الفخذ',
+        forearms: 'ساعد', glutes: 'مؤخرة', calves: 'سمانة', abs: 'بطن',
+        quadriceps: 'أمام الفخذ', pectorals: 'صدر', delts: 'أكتاف', 'upper back': 'أعلى الظهر',
+        core: 'عضلات الجذع', chest: 'صدر', lats: 'ظهر عريض', 'hip flexors': 'ثانيات الورك',
+        obliques: 'بطن جانبي', 'lower back': 'أسفل الظهر', rhomboids: 'وسط الظهر',
+        traps: 'ترابيس', trapezius: 'ترابيس', quads: 'أمام الفخذ',
+        'cardiovascular system': 'قلب وتنفس', deltoids: 'أكتاف', 'rear deltoids': 'أكتاف خلفية',
+        spine: 'عضلات العمود الفقري', brachialis: 'العضدية', back: 'ظهر', ankles: 'كاحل',
+        feet: 'قدم', adductors: 'داخل الفخذ', 'rotator cuff': 'الكفة المدوّرة',
+        'serratus anterior': 'المسننة الأمامية', 'latissimus dorsi': 'ظهر عريض',
+        abductors: 'خارج الفخذ', 'ankle stabilizers': 'مثبتات الكاحل', soleus: 'سمانة عميقة',
+        wrists: 'رسغ', 'upper chest': 'أعلى الصدر', 'wrist flexors': 'ثنّي الرسغ',
+        'wrist extensors': 'بسط الرسغ', abdominals: 'بطن', 'levator scapulae': 'رافعة الكتف',
+        sternocleidomastoid: 'رقبة', hands: 'يدان', groin: 'أربية', 'grip muscles': 'قبضة اليد',
+        'lower abs': 'أسفل البطن', 'inner thighs': 'داخل الفخذ', shins: 'أمام الساق'
+    };
+    const key = String(muscle || '').toLowerCase();
+    return map[key] || muscle;
 }
 
 function debounce(fn, delay = 200) {

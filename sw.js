@@ -20,9 +20,9 @@ messaging.onBackgroundMessage((payload) => {
     });
 });
 
-const CACHE_VERSION = 'ngym-v5';
-const STATIC_CACHE = `${CACHE_VERSION}-static`;
-const GIF_CACHE = `${CACHE_VERSION}-gifs`;
+const CACHE_NAME = 'ngym-cache-v5';
+const STATIC_CACHE = `${CACHE_NAME}-static`;
+const GIF_CACHE = `${CACHE_NAME}-gifs`;
 
 const ASSETS_TO_CACHE = [
     './', './index.html', './style.css', './app.js', './manifest.json',
@@ -73,7 +73,7 @@ self.addEventListener('fetch', (e) => {
                         caches.open(GIF_CACHE).then(c => c.put(e.request, copy));
                     }
                     return res;
-                })
+                }).catch(() => Response.error())
             )
         );
         return;
@@ -88,9 +88,11 @@ self.addEventListener('fetch', (e) => {
             }
             return res;
         }).catch(() =>
-            caches.match(e.request).then(cached =>
-                cached || (e.request.mode === 'navigate' ? caches.match('./index.html') : null)
-            )
+            caches.match(e.request).then(cached => {
+                if (cached) return cached;
+                if (e.request.mode !== 'navigate') return Response.error();
+                return caches.match('./index.html').then(index => index || Response.error());
+            })
         )
     );
 });
