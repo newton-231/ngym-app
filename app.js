@@ -1800,21 +1800,50 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
         async function handleActivateCode(event) {
             event?.preventDefault();
-            const code = String(
-                document.getElementById('code-input')?.value
-                || document.getElementById('coach-code-input')?.value
-                || ''
-            ).trim().toUpperCase();
-            if (!/^NGYM-[A-Z0-9]{8,}$/.test(code)) return phoneAuthError('يرجى إدخال كود تفعيل صحيح');
+            const form = event?.currentTarget;
+            const input = form?.querySelector('input')
+                || document.getElementById('code-input')
+                || document.getElementById('coach-code-input');
+            const feedback = form?.querySelector('[data-code-feedback]');
+            const setFeedback = (message, isError = false) => {
+                if (feedback) {
+                    feedback.textContent = message;
+                    feedback.classList.toggle('text-red-400', isError);
+                    feedback.classList.toggle('text-emerald-400', !isError);
+                } else {
+                    phoneAuthError(message);
+                }
+            };
+            const code = String(input?.value || '').trim().toUpperCase();
+            if (!/^NGYM-[A-Z0-9]{8,}$/.test(code)) {
+                setFeedback('يرجى إدخال كود تفعيل صحيح', true);
+                return;
+            }
+            const submitButton = form?.querySelector('button');
+            const originalButtonText = submitButton?.textContent;
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'جارٍ التحقق...';
+            }
             try {
                 const response = await fetch('/api/activate', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ code }) });
-                const result = await response.json();
+                const result = await response.json().catch(() => ({}));
                 if (!response.ok) throw new Error(result.error || 'تعذر تفعيل الكود');
+                if (!result.subscriptionEndDate) throw new Error('تم قبول الطلب لكن لم تصل صلاحية الاشتراك');
                 localStorage.setItem('subscriptionEndDate', result.subscriptionEndDate);
-                phoneAuthError('تم تفعيل الاشتراك بنجاح');
-                setPhoneAuthVisible(false);
+                if (input) input.value = '';
+                setFeedback('تم تفعيل الاشتراك بنجاح');
+                if (form?.id === 'code-section') setPhoneAuthVisible(false);
                 await updateSubscriptionUI();
-            } catch (error) { phoneAuthError(error.message || 'تعذر تفعيل الكود'); }
+                showToast('تم تفعيل الاشتراك بنجاح.', 'success');
+            } catch (error) {
+                setFeedback(error.message || 'تعذر تفعيل الكود', true);
+            } finally {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                }
+            }
         }
         async function checkSubscriptionFromServer() {
             try {
