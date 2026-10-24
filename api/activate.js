@@ -28,6 +28,7 @@ module.exports = async (req, res) => {
         const result = await db.runTransaction(async tx => {
             const [codeDoc, userDoc] = await Promise.all([tx.get(codeRef), tx.get(userRef)]);
             const data = codeDoc.exists ? codeDoc.data() : {};
+            console.log('Debug Code:', `${code.slice(0, 5)}...${code.slice(-4)}`, 'Exists:', codeDoc.exists, 'isUsed:', data.isUsed, 'expiresAt:', data.expiresAt);
             if (!codeDoc.exists || data.isUsed || (data.expiresAt && new Date(data.expiresAt).getTime() < Date.now())) { const e = new Error('INVALID'); e.statusCode = 400; throw e; }
             if (!userDoc.exists || !userDoc.data().phone) { const e = new Error('PHONE_REQUIRED'); e.statusCode = 403; throw e; }
             if (!data.phone || userDoc.data().phone !== data.phone) { const e = new Error('PHONE_MISMATCH'); e.statusCode = 403; throw e; }
@@ -43,8 +44,9 @@ module.exports = async (req, res) => {
         });
         return res.status(200).json({ subscriptionEndDate: result });
     } catch (error) {
+        console.error('Activate error details:', error);
         if (error.statusCode === 403) return res.status(403).json({ error: error.message === 'PHONE_REQUIRED' ? 'لم يتم تسجيل رقم هاتف' : 'الكود مخصص لرقم آخر' });
         if (error.statusCode === 400) return res.status(400).json({ error: 'الكود غير صالح أو منتهي' });
-        console.error('Activate API error:', error); return res.status(500).json({ error: 'تعذر تفعيل الكود حالياً' });
+        return res.status(500).json({ error: 'تعذر تفعيل الكود حالياً' });
     }
 };
