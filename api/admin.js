@@ -78,7 +78,7 @@ module.exports = async (req, res) => {
             if (!String(body.phone || '').trim().startsWith('+')) return res.status(400).json({ error: 'رقم الهاتف يجب أن يكون بصيغة دولية' });
             const phone = normalizePhone(body.phone);
             if (!phone) return res.status(400).json({ error: 'رقم الهاتف غير صالح ومطلوب' });
-            const code = `NGYM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+            const code = `NGYM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`.trim();
             const now = new Date();
             const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
             await db.collection('codes').doc(code).create({
