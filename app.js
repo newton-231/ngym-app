@@ -27,6 +27,7 @@ let reminderInterval = null;
 let fcmMessaging = null;
 let fcmToken = null;
 let fcmServiceWorkerRegistration = null;
+let fcmForegroundListenerRegistered = false;
 let analyticsInstance = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
@@ -1200,6 +1201,14 @@ async function initializeFcm() {
     if (!vapidKey || !window.firebase?.messaging || !fcmServiceWorkerRegistration) return null;
     try {
         fcmMessaging = firebase.messaging();
+        if (!fcmForegroundListenerRegistered) {
+            fcmMessaging.onMessage(payload => {
+                const notification = payload.notification || {};
+                const message = [notification.title, notification.body].filter(Boolean).join(': ');
+                showToast(message || 'وصلك إشعار جديد', 'info');
+            });
+            fcmForegroundListenerRegistered = true;
+        }
         fcmToken = await fcmMessaging.getToken({
             vapidKey,
             serviceWorkerRegistration: fcmServiceWorkerRegistration
@@ -1228,9 +1237,11 @@ function hideOfflineBanner() {
 }
 
 async function saveReminderToFirebase(reminders, token) {
-    if (!window.db || !token) return;
+    const uid = localStorage.getItem('ngym_user_id')
+        || window.NGYM_MODULAR_AUTH?.auth?.currentUser?.uid;
+    if (!window.db || !token || !uid) return;
     try {
-        await db.collection('users').doc(getDeviceId()).set({
+        await db.collection('users').doc(uid).set({
             reminder: reminders,
             fcmToken: token,
             updatedAt: new Date().toISOString()
