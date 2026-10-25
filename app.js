@@ -37,7 +37,19 @@ let splashAuthReady = false;
 let splashUserReady = false;
 let splashExercisesReady = false;
 let splashHidden = false;
+let deferredInstallPrompt = null;
 const EXERCISE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"%3E%3Crect width="320" height="240" fill="%231e293b"/%3E%3Ctext x="160" y="125" text-anchor="middle" fill="%2394a3b8" font-size="20" font-family="Arial"%3ENo image%3C/text%3E%3C/svg%3E';
+
+window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+});
+
+window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    document.getElementById('install-app-btn')?.classList.add('hidden');
+    showToast('تم تثبيت تطبيق NGym بنجاح.', 'success');
+});
 
 function showToast(message, type = 'info', duration = 3000, retryAction = null) {
     const container = document.getElementById('toast-container') || (() => {
@@ -421,6 +433,41 @@ function openModal(modalId) {
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.add('hidden');
+}
+
+function getInstallPlatform() {
+    const userAgent = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+        return 'ios';
+    }
+    return /Android/i.test(userAgent) ? 'android' : 'other';
+}
+
+function showInstallInstructions(platform = getInstallPlatform()) {
+    document.querySelectorAll('[data-install-platform]').forEach(section => {
+        section.hidden = section.dataset.installPlatform !== platform;
+    });
+    openModal('install-instructions-modal');
+}
+
+async function handleInstallApp() {
+    if (!deferredInstallPrompt) {
+        showInstallInstructions();
+        return;
+    }
+
+    const installPrompt = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    try {
+        await installPrompt.prompt();
+        const choice = await installPrompt.userChoice;
+        if (choice?.outcome === 'accepted') {
+            showToast('جارٍ تثبيت تطبيق NGym...', 'success');
+        }
+    } catch (error) {
+        console.error('تعذر فتح نافذة تثبيت التطبيق:', error);
+        showInstallInstructions('android');
+    }
 }
 
 function selectGender(gender) {
@@ -1739,6 +1786,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         const code = prompt('أدخل كود التفعيل:');
         if (code) redeemSubscriptionCode(code);
     });
+    document.getElementById('install-app-btn')?.addEventListener('click', handleInstallApp);
+    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) {
+        document.getElementById('install-app-btn')?.classList.add('hidden');
+    }
     document.getElementById('generate-code-btn')?.addEventListener('click', function() {
         const duration = parseInt(document.getElementById('code-duration')?.value) || 30;
         generateCode(duration);
@@ -1749,11 +1800,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 // Phone registration migration. The Google flow above is retained as // DEPRECATED
         // compatibility code, but anonymous Firebase identities are now used for all users.
         function normalizePhone(value) {
-            const input = String(value || '').trim();
-            const digits = input.replace(/\D/g, '');
-            if (input.startsWith('+')) return `+${digits}`;
+            const digits = String(value || '').replace(/\D/g, '');
             if (digits.startsWith('00')) return `+${digits.slice(2)}`;
-            return `+${digits.replace(/^0/, '')}`;
+            if (digits.startsWith('972')) return `+${digits}`;
+            if (digits.startsWith('0')) return `+970${digits.slice(1)}`;
+            return `+${digits}`;
         }
         function validatePhone(value) { return /^\+[1-9]\d{7,14}$/.test(normalizePhone(value)); }
         function phoneAuthError(message) {
@@ -1776,11 +1827,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         async function handlePhoneSubmit(event) {
             event?.preventDefault();
             const input = document.getElementById('phone-input');
-            if (!String(input?.value || '').trim().startsWith('+')) {
-                return phoneAuthError('يجب إدخال رقم دولي يبدأ بعلامة +');
-            }
             const phone = normalizePhone(input?.value);
-            if (!validatePhone(phone)) return phoneAuthError('يرجى إدخال رقم هاتف دولي صحيح مثل +1234567890');
+            if (!validatePhone(phone)) return phoneAuthError('يرجى إدخال رقم صحيح مثل +970 5X XXX XXXX');
             try {
                 const authApi = window.NGYM_MODULAR_AUTH;
                 await authApi.ensureAnonymousAuth();
