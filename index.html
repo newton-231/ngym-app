@@ -415,6 +415,9 @@
                 <button type="button" onclick="rateApp()" class="bg-slate-800 border border-slate-700 text-slate-200 py-2.5 rounded-xl text-xs font-bold hover:border-emerald-500">
                     <i class="fa-solid fa-star"></i> تقييم التطبيق
                 </button>
+                <button type="button" id="install-app-btn" class="col-span-2 bg-slate-800 border border-slate-700 text-slate-200 py-2.5 rounded-xl text-xs font-bold hover:border-emerald-500">
+                    <i class="fa-solid fa-mobile-screen-button text-emerald-400"></i> تثبيت التطبيق 📲
+                </button>
                 <button type="button" onclick="openSupportWhatsApp()" class="col-span-2 bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600/30">
                     <i class="fa-brands fa-whatsapp"></i> الدعم عبر واتساب
                 </button>
@@ -426,6 +429,39 @@
             <button type="button" onclick="clearLocalData()" class="w-full bg-red-600/20 border border-red-500/40 text-red-300 py-2.5 rounded-xl text-xs font-bold hover:bg-red-600/30">
                 <i class="fa-solid fa-trash"></i> مسح البيانات المحلية
             </button>
+        </div>
+    </div>
+
+    <div id="install-instructions-modal" class="install-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="install-instructions-title" onclick="if (event.target === this) closeModal('install-instructions-modal')">
+        <div class="install-modal-card">
+            <div class="install-modal-header">
+                <div class="install-modal-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                <button type="button" class="install-modal-close" aria-label="إغلاق" onclick="closeModal('install-instructions-modal')">×</button>
+            </div>
+            <h3 id="install-instructions-title">أضف NGym إلى شاشتك الرئيسية</h3>
+            <p class="install-modal-intro">افتح التطبيق بسرعة من هاتفك كأنه تطبيق مثبت.</p>
+            <div class="install-instructions" data-install-platform="ios" hidden>
+                <div class="install-step-icon"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
+                <div>
+                    <strong>على iPhone أو iPad (Safari)</strong>
+                    <p>اضغط على زر المشاركة (Share) في الأسفل، ثم اختر «إضافة إلى الشاشة الرئيسية» (Add to Home Screen).</p>
+                </div>
+            </div>
+            <div class="install-instructions" data-install-platform="android" hidden>
+                <div class="install-step-icon"><i class="fa-solid fa-ellipsis-vertical"></i></div>
+                <div>
+                    <strong>على Android (Chrome)</strong>
+                    <p>اضغط على النقاط الثلاث في الأعلى، ثم اختر «تثبيت التطبيق» (Install App) أو «إضافة إلى الشاشة الرئيسية».</p>
+                </div>
+            </div>
+            <div class="install-instructions" data-install-platform="other" hidden>
+                <div class="install-step-icon"><i class="fa-solid fa-house"></i></div>
+                <div>
+                    <strong>أضف التطبيق إلى الشاشة الرئيسية</strong>
+                    <p>افتح قائمة المتصفح وابحث عن «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».</p>
+                </div>
+            </div>
+            <button type="button" class="install-modal-done" onclick="closeModal('install-instructions-modal')">حسناً</button>
         </div>
     </div>
 
@@ -640,7 +676,7 @@
             <h1>NGym</h1>
             <h2>ابدأ تجربتك المجانية 30 يوماً</h2>
             <form id="phone-auth-form">
-                <input id="phone-input" type="tel" inputmode="tel" autocomplete="tel" placeholder="+123 456 7890" aria-label="رقم الهاتف" required>
+                <input id="phone-input" type="tel" inputmode="tel" autocomplete="tel" placeholder="+970 5X XXX XXXX" aria-label="رقم الهاتف" required>
                 <button id="start-trial-btn" type="submit">ابدأ الآن 🚀</button>
             </form>
             <button id="show-code-link" type="button">لديك كود تفعيل؟</button>
